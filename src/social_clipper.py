@@ -704,6 +704,44 @@ def generate_social_clips(
         effective_use_nvenc = use_gpu and NVENC_AVAILABLE and gpu_encoder != "cpu" and gpu_encoder != "none"
         actual_encoder = gpu_encoder if effective_use_nvenc else "libx264"
 
+        # Prepare full-song lyrics timestamps ONCE across the entire video
+        full_timed_words: List[TimedWord] = []
+        if enable_subtitles and has_audio and extracted_audio and os.path.exists(extracted_audio):
+            _notify(6, "Trascrizione vocale AI e sincronizzazione testi canzone...")
+            try:
+                from lyrics_karaoke import (
+                    transcribe_audio_whisper,
+                    align_user_lyrics_with_audio,
+                    parse_lrc_or_srt,
+                    TimedWord,
+                )
+
+                if lyrics_file and os.path.exists(lyrics_file):
+                    parsed_phrases = parse_lrc_or_srt(lyrics_file)
+                    for p in parsed_phrases:
+                        full_timed_words.extend(p.words)
+                else:
+                    # Transcribe full audio track with Whisper (vad_filter=False captures singing!)
+                    whisper_words = transcribe_audio_whisper(
+                        audio_path=extracted_audio,
+                        model_size="tiny",
+                        initial_prompt=lyrics_text,
+                        progress_callback=progress_callback,
+                    )
+                    if lyrics_text and lyrics_text.strip():
+                        full_timed_words = align_user_lyrics_with_audio(
+                            provided_lyrics_text=lyrics_text,
+                            audio_words=whisper_words,
+                            audio_duration=duration,
+                            beat_times=beat_times_arr,
+                        )
+                    else:
+                        full_timed_words = whisper_words
+
+                _notify(6, f"Rilevate {len(full_timed_words)} parole sincronizzate nella traccia audio.")
+            except Exception as e:
+                print(f"   ⚠️  Warning preparing subtitles for shorts: {e}")
+
         base_name = os.path.splitext(os.path.basename(video_path))[0]
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -721,70 +759,37 @@ def generate_social_clips(
 
             # Generate clip-specific ASS subtitle file if enabled
             clip_ass_file = None
-            if enable_subtitles and has_audio:
+            if enable_subtitles and (full_timed_words or (lyrics_text and lyrics_text.strip())):
                 try:
                     from lyrics_karaoke import (
-                        transcribe_audio_whisper,
-                        align_user_lyrics_with_audio,
-                        parse_lrc_or_srt,
                         group_words_into_phrases,
                         generate_karaoke_ass,
+                        align_user_lyrics_with_audio,
                         TimedWord,
                     )
 
                     clip_words = []
-
-                    # Option A: Pre-timed file (.lrc / .srt)
-                    if lyrics_file and os.path.exists(lyrics_file):
-                        parsed_phrases = parse_lrc_or_srt(lyrics_file)
-                        for p in parsed_phrases:
-                            for tw in p.words:
-                                if tw.end > start_s and tw.start < end_s:
+                    if full_timed_words:
+                        for tw in full_timed_words:
+                            if tw.end > start_s and tw.start < end_s:
+                                w_s = max(0.0, tw.start - start_s)
+                                w_e = min(dur_s, tw.end - start_s)
+                                if w_e > w_s:
                                     clip_words.append(TimedWord(
                                         word=tw.word,
-                                        start=max(0.0, tw.start - start_s),
-                                        end=min(dur_s, tw.end - start_s),
+                                        start=w_s,
+                                        end=w_e,
                                         confidence=tw.confidence,
                                     ))
 
-                    # Option B: Whisper Audio Slice Transcription & Alignment
-                    if not clip_words:
-                        clip_wav = os.path.join(temp_proc_dir, f"clip_{idx+1}_slice.wav")
-                        slice_cmd = [
-                            FFMPEG_PATH, '-nostdin', '-hide_banner',
-                            '-ss', f"{start_s:.3f}",
-                            '-i', video_path,
-                            '-t', f"{dur_s:.3f}",
-                            '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1',
-                            '-y', clip_wav,
-                        ]
-                        from ffmpeg_processing import _run_media_command
-                        _run_media_command(slice_cmd, timeout=30)
-
-                        if os.path.exists(clip_wav) and os.path.getsize(clip_wav) > 0:
-                            whisper_words = transcribe_audio_whisper(
-                                audio_path=clip_wav,
-                                model_size="tiny",
-                                initial_prompt=lyrics_text,
-                            )
-                            if whisper_words:
-                                if lyrics_text and lyrics_text.strip():
-                                    clip_words = align_user_lyrics_with_audio(
-                                        provided_lyrics_text=lyrics_text,
-                                        audio_words=whisper_words,
-                                        audio_duration=dur_s,
-                                    )
-                                else:
-                                    clip_words = whisper_words
-
-                        # Option C: Fallback to rhythmic beat-aligned manual text
-                        if not clip_words and lyrics_text and lyrics_text.strip():
-                            clip_beats = [float(b) - start_s for b in beat_times_arr if start_s <= float(b) <= end_s]
-                            clip_words = align_user_lyrics_with_audio(
-                                provided_lyrics_text=lyrics_text,
-                                audio_duration=dur_s,
-                                beat_times=clip_beats if len(clip_beats) >= 2 else None,
-                            )
+                    # If this specific clip fell on an instrumental section with no vocals, but user gave lyrics:
+                    if not clip_words and lyrics_text and lyrics_text.strip():
+                        clip_beats = [float(b) - start_s for b in beat_times_arr if start_s <= float(b) <= end_s]
+                        clip_words = align_user_lyrics_with_audio(
+                            provided_lyrics_text=lyrics_text,
+                            audio_duration=dur_s,
+                            beat_times=clip_beats if len(clip_beats) >= 2 else None,
+                        )
 
                     if clip_words:
                         clip_phrases = group_words_into_phrases(clip_words, max_words_per_line=3)
@@ -805,6 +810,7 @@ def generate_social_clips(
                     print(f"   ⚠️  Warning generating clip subtitle: {sub_e}")
 
             _notify(6, f"Extracting Clip {idx+1}/{len(intervals)}: {start_s:.2f}s - {end_s:.2f}s ({dur_s:.1f}s) -> 1080x1920...")
+
 
 
 
