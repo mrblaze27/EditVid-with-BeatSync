@@ -151,39 +151,55 @@ def _format_srt_timestamp(seconds: float) -> str:
 # TRANSCRIPTION & ALIGNMENT
 # ============================================================================
 
+_WHISPER_MODEL_CACHE: Dict[str, Any] = {}
+
+
+def get_cached_whisper_model(model_size: str = "tiny") -> Any:
+    """Load and cache WhisperModel in memory for instant reuse."""
+    global _WHISPER_MODEL_CACHE
+    if model_size not in _WHISPER_MODEL_CACHE:
+        from faster_whisper import WhisperModel
+        try:
+            model = WhisperModel(model_size, device="cpu", compute_type="int8")
+        except Exception:
+            model = WhisperModel(model_size, device="cpu", compute_type="float32")
+        _WHISPER_MODEL_CACHE[model_size] = model
+    return _WHISPER_MODEL_CACHE[model_size]
+
+
 def transcribe_audio_whisper(
     audio_path: str,
     model_size: str = "tiny",
     language: Optional[str] = None,
+    initial_prompt: Optional[str] = None,
     progress_callback: Optional[Callable[[str], None]] = None,
 ) -> List[TimedWord]:
     """
     Transcribe audio with faster-whisper and extract word-level timestamps.
+    Disables VAD filter to preserve singing vocals over heavy music.
     """
     if not os.path.exists(audio_path):
         return []
 
     try:
-        from faster_whisper import WhisperModel
-
         if progress_callback:
             progress_callback(f"Caricamento modello Whisper AI ({model_size})...")
 
-        # CPU mode with int8 is fast, robust, and avoids CUDA DLL lockups
-        try:
-            model = WhisperModel(model_size, device="cpu", compute_type="int8")
-        except Exception:
-            model = WhisperModel(model_size, device="cpu", compute_type="float32")
+        model = get_cached_whisper_model(model_size)
 
         if progress_callback:
-            progress_callback("Trascrizione vocale in corso...")
+            progress_callback("Trascrizione vocale e rilevamento parole...")
+
+        prompt_str = initial_prompt[:500] if initial_prompt else None
 
         segments, info = model.transcribe(
             audio_path,
             word_timestamps=True,
             language=language if language and language != "auto" else None,
-            vad_filter=True,
-            vad_parameters=dict(min_silence_duration_ms=300),
+            initial_prompt=prompt_str,
+            vad_filter=False,  # Essential for singing over background music!
+            beam_size=5,
+            temperature=0.0,
         )
 
         total_dur = getattr(info, "duration", 0.0) or 0.0
@@ -211,6 +227,7 @@ def transcribe_audio_whisper(
     except Exception as e:
         print(f"   ⚠️  Whisper transcription error: {e}")
         return []
+
 
 
 def align_user_lyrics_with_audio(
