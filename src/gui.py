@@ -365,6 +365,7 @@ def _as_existing_source_paths(file_paths: VideoFilesInput) -> list[str]:
 def _process_video_impl(audio_file: str, video_files: VideoFilesInput,
                        output_filename: str, processing_mode: str,
                        custom_fps: float,
+                       ai_vision_tier: str = "standard_2b",
                        enable_subtitles: bool = False,
                        lyrics_mode: str = "auto_whisper",
                        lyrics_text: str = None,
@@ -375,6 +376,7 @@ def _process_video_impl(audio_file: str, video_files: VideoFilesInput,
                        session_state: dict = None,
                        progress_callback: Callable[[str], None] | None = None,
                        console_logger: StageConsoleLogger | None = None) -> StatusResult:
+
     total_started = time.perf_counter()
     parallel_workers = PARALLEL_WORKERS
     session_dir = tempfile.mkdtemp(prefix='beatsync_session_')
