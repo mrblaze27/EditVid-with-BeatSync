@@ -140,9 +140,32 @@ STATUS_BOX_CSS = """
 }
 
 .shorts-video-player {
-    max-height: 480px !important;
+    max-width: 320px !important;
+    margin: 0 auto !important;
+    border-radius: 16px !important;
+    overflow: hidden !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25) !important;
+}
+
+.shorts-video-player .wrap, .shorts-video-player .video-container {
+    max-width: 320px !important;
+    aspect-ratio: 9 / 16 !important;
+    height: 568px !important;
+    max-height: 568px !important;
+    margin: 0 auto !important;
+    border-radius: 14px !important;
+}
+
+.shorts-video-player video {
+    aspect-ratio: 9 / 16 !important;
+    object-fit: cover !important;
+    max-width: 320px !important;
+    height: 568px !important;
+    max-height: 568px !important;
+    border-radius: 14px !important;
 }
 """
+
 
 
 STAGE_PROGRESS_MAP = {
