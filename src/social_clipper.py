@@ -641,10 +641,12 @@ def generate_social_clips(
 
         # Step 2: Audio extraction & rhythm analysis
         audio_info = {}
+        extracted_audio = None
         if has_audio:
             _notify(2, "Extracting and analyzing audio wave & beat grid...")
             temp_wav = os.path.join(temp_proc_dir, "audio_analysis.wav")
             if extract_audio_from_video(video_path, temp_wav):
+                extracted_audio = temp_wav
                 audio_info = _analyze_audio_timeline(temp_wav, duration)
                 tempo = audio_info.get("tempo", 120.0)
                 beats_count = len(audio_info.get("beat_times", []))
@@ -732,12 +734,13 @@ def generate_social_clips(
                             provided_lyrics_text=lyrics_text,
                             audio_words=whisper_words,
                             audio_duration=duration,
-                            beat_times=beat_times,
+                            beat_times=beat_times_arr,
                         )
                     else:
                         full_timed_words = whisper_words
             except Exception as e:
                 print(f"   ⚠️  Warning preparing subtitles for shorts: {e}")
+
 
         base_name = os.path.splitext(os.path.basename(video_path))[0]
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
