@@ -230,4 +230,8 @@ def ensure_model_available(
                     return ensure_model_available("standard_2b", progress_callback)
                 return False
 
+    if progress_callback:
+        progress_callback(f"✓ AI Model ({info['name']}) downloaded successfully! Initializing AI Vision Engine...")
+
     return True
+
