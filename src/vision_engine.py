@@ -159,7 +159,11 @@ def analyze_video_moments_with_tier(
         return run_fast_vision_analysis(video_path, candidate_timestamps, progress_callback)
 
     # Ensure requested model (2B or 7B) is downloaded and ready
-    ensure_model_available(model_tier, progress_callback)
+    ready = ensure_model_available(model_tier, progress_callback)
+    if not ready and model_tier != "fast_siglip":
+        if progress_callback:
+            progress_callback(f"Model {model_tier} unavailable. Using Fast Vision Engine fallback...")
+        return run_fast_vision_analysis(video_path, candidate_timestamps, progress_callback)
 
     # Tier 2 & 3: Standard (2B) or Cinematic Pro (7B) via Qwen Worker
     model_paths = get_model_paths(model_tier)
@@ -168,16 +172,20 @@ def analyze_video_moments_with_tier(
     if model_paths.get("mmproj") and os.path.exists(model_paths["mmproj"]):
         os.environ["BEATSYNC_QWEN_LLAMA_MMPROJ"] = model_paths["mmproj"]
 
-    # Import and run Qwen worker
     try:
-        from video_analysis import analyze_video_moments_qwen_batched
-        return analyze_video_moments_qwen_batched(
-            video_path=video_path,
-            candidate_timestamps=candidate_timestamps,
-            progress_callback=progress_callback,
+        from video_analysis import analyze_video_sources
+        analysis = analyze_video_sources(
+            video_files=[video_path],
+            enable_ai=True,
+            qwen_model_path=model_paths.get("model"),
         )
+        candidates = analysis.get("candidates", [])
+        if candidates:
+            return candidates
     except Exception as e:
         print(f"   ⚠️  Qwen worker error ({model_tier}), falling back to Fast Vision Engine: {e}")
         if progress_callback:
-            progress_callback("AI Model error. Falling back to Fast Vision Engine...")
-        return run_fast_vision_analysis(video_path, candidate_timestamps, progress_callback)
+            progress_callback("AI Model execution error. Falling back to Fast Vision Engine...")
+
+    return run_fast_vision_analysis(video_path, candidate_timestamps, progress_callback)
+

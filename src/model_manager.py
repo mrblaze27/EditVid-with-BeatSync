@@ -60,17 +60,18 @@ AI_VISION_MODELS = {
         "files": {
             "model": {
                 "filename": "Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf",
-                "url": "https://huggingface.co/bartowski/Qwen2.5-VL-7B-Instruct-GGUF/resolve/main/Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf",
+                "url": "https://huggingface.co/unsloth/Qwen2.5-VL-7B-Instruct-GGUF/resolve/main/Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf",
                 "size_mb": 4680,
             },
             "mmproj": {
                 "filename": "mmproj-Qwen2.5-VL-7B-Instruct-F16.gguf",
-                "url": "https://huggingface.co/bartowski/Qwen2.5-VL-7B-Instruct-GGUF/resolve/main/mmproj-Qwen2.5-VL-7B-Instruct-F16.gguf",
+                "url": "https://huggingface.co/unsloth/Qwen2.5-VL-7B-Instruct-GGUF/resolve/main/mmproj-F16.gguf",
                 "size_mb": 840,
             },
         },
     },
 }
+
 
 
 def get_models_dir() -> Path:

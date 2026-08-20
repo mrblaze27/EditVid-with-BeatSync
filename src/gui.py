@@ -376,32 +376,46 @@ def _process_video_impl(audio_file: str, video_files: VideoFilesInput,
                        progress_callback: Callable[[str], None] | None = None,
                        console_logger: StageConsoleLogger | None = None) -> StatusResult:
     total_started = time.perf_counter()
+    parallel_workers = PARALLEL_WORKERS
+    session_dir = tempfile.mkdtemp(prefix='beatsync_session_')
+    session_state = dict(session_state or {})
+    
     try:
-        parallel_workers = PARALLEL_WORKERS
+        # Prepare AI Vision model if selected
 
-        # Initialize session state if needed
-        if 'original_audio_path' not in session_state:
-            session_state['original_audio_path'] = None
-            session_state['original_video_paths'] = []
-        if 'session_dir' not in session_state or not os.path.isdir(session_state['session_dir']):
-            session_state['session_dir'] = tempfile.mkdtemp(prefix='beatsync_', dir=GRADIO_TEMP_DIR)
-        session_dir = session_state['session_dir']
+        qwen_enabled = True
+        qwen_model_path = ""
+        if ai_vision_tier in ("standard_2b", "pro_7b"):
+            from model_manager import ensure_model_available, get_model_paths
+            ensure_model_available(ai_vision_tier, progress_callback)
+            m_paths = get_model_paths(ai_vision_tier)
+            if m_paths.get("model"):
+                os.environ["BEATSYNC_QWEN_LLAMA_MODEL"] = m_paths["model"]
+            if m_paths.get("mmproj"):
+                os.environ["BEATSYNC_QWEN_LLAMA_MMPROJ"] = m_paths["mmproj"]
+            qwen_model_path = m_paths.get("model", "")
+            qwen_enabled = True
+        elif ai_vision_tier == "fast_siglip":
+            qwen_model_path = ""
+            qwen_enabled = False
 
-        # Handle audio by referencing the selected file path directly.
+        if progress_callback:
+            progress_callback(_stage_status(1))
+        
+        # Handle audio
         if audio_file:
-            if audio_file != session_state.get('original_audio_path'):
-                local_audio_path = _as_existing_source_path(audio_file)
-                if local_audio_path:
-                    session_state['local_audio_path'] = local_audio_path
-                    session_state['original_audio_path'] = audio_file
-                else:
-                    return None, '❌ Error: Could not access audio file', session_state
+            local_audio_path = _as_existing_source_path(audio_file)
+            if local_audio_path:
+                session_state['local_audio_path'] = local_audio_path
+                session_state['original_audio_path'] = audio_file
             else:
-                local_audio_path = session_state.get('local_audio_path')
+                return None, '❌ Error: Could not access audio file', session_state
+        elif session_state.get('local_audio_path'):
+            local_audio_path = session_state.get('local_audio_path')
         else:
             return None, '❌ Error: No audio file selected', session_state
 
-        # Handle videos by referencing selected file paths directly.
+        # Handle videos
         if video_files:
             if video_files != session_state.get('original_video_paths'):
                 local_video_paths = _as_existing_source_paths(video_files)
@@ -453,6 +467,8 @@ def _process_video_impl(audio_file: str, video_files: VideoFilesInput,
             local_audio_path,
             use_gpu=use_gpu,
             video_files=local_video_paths,
+            enable_qwen_semantics=qwen_enabled,
+            qwen_model_path=qwen_model_path,
             progress_callback=progress_callback,
             console_callback=lambda stage, message: console_logger.stage_line(stage, message) if console_logger else None,
         )
@@ -536,38 +552,43 @@ def _process_video_impl(audio_file: str, video_files: VideoFilesInput,
         return None, error_msg, session_state
 
 
-def process_video(audio_file: str, video_files: VideoFilesInput,
-                  output_filename: str, processing_mode: str,
-                  custom_fps: float,
-                  enable_subtitles: bool,
-                  lyrics_mode: str,
-                  lyrics_text: str,
-                  lyrics_file: str,
-                  lyrics_style: str,
-                  lyrics_palette: str,
-                  lyrics_position: str,
-                  session_state: dict) -> Iterator[StatusResult]:
+def process_video(
+    audio_file: str,
+    video_files: List[str],
+    output_filename: str,
+    processing_mode: str,
+    custom_fps: float,
+    ai_vision_tier: str,
+    enable_subtitles: bool,
+    lyrics_mode: str,
+    lyrics_text: str,
+    lyrics_file: str,
+    lyrics_style: str,
+    lyrics_palette: str,
+    lyrics_position: str,
+    session_state: dict
+) -> Iterator[StatusResult]:
     status_queue: queue.Queue[str | None] = queue.Queue()
     result_queue: queue.Queue[StatusResult] = queue.Queue(maxsize=1)
-    initial_status = _stage_status(1)
     console_logger = StageConsoleLogger(sys.__stdout__)
     quiet_console = QuietConsole()
 
-    def progress_callback(message: str) -> None:
-        status_queue.put(message)
-        match = re.search(r"Stage (\d+) is processing", message)
+    def progress_callback(msg: str) -> None:
+        status_queue.put(msg)
+        match = re.search(r"Stage (\d+):", msg)
         if match:
             console_logger.start_stage(int(match.group(1)))
 
     def worker() -> None:
         try:
             with contextlib.redirect_stdout(quiet_console), contextlib.redirect_stderr(quiet_console):
-                result = _process_video_impl(
+                res = _process_video_impl(
                     audio_file=audio_file,
                     video_files=video_files,
                     output_filename=output_filename,
                     processing_mode=processing_mode,
                     custom_fps=custom_fps,
+                    ai_vision_tier=ai_vision_tier,
                     enable_subtitles=enable_subtitles,
                     lyrics_mode=lyrics_mode,
                     lyrics_text=lyrics_text,
@@ -577,22 +598,22 @@ def process_video(audio_file: str, video_files: VideoFilesInput,
                     lyrics_position=lyrics_position,
                     session_state=session_state,
                     progress_callback=progress_callback,
-                    console_logger=console_logger,
+                    console_logger=console_logger
                 )
         except Exception as e:
             console_logger.line(f"Error: {e}")
-            result = None, f"❌ Error: {e}", session_state
+            res = None, f"❌ Error: {e}", session_state
         finally:
             console_logger.finish()
-        result_queue.put(result)
+        result_queue.put(res)
         status_queue.put(None)
 
     thread = threading.Thread(target=worker, daemon=True)
     console_logger.start_stage(1)
     thread.start()
 
-    last_status = initial_status
-    yield None, initial_status, session_state
+    last_status = _stage_status(1)
+    yield None, last_status, session_state
 
     while True:
         message = status_queue.get()
@@ -867,6 +888,15 @@ def create_ui() -> gr.Blocks:
                             gr.Markdown('### 📁 Output Settings')
                             output_filename = gr.Textbox(value='music_video.mp4', label=LABEL_OUTPUT_FILENAME, info=INFO_OUTPUT_FILENAME)
 
+                        with gr.Group():
+                            gr.Markdown('### 🧠 AI Vision Intelligence')
+                            mv_ai_vision_tier = gr.Dropdown(
+                                choices=CHOICES_AI_VISION_TIER,
+                                value="standard_2b",
+                                label=LABEL_AI_VISION_TIER,
+                                info=INFO_AI_VISION_TIER,
+                            )
+
                         with gr.Accordion(GROUP_KARAOKE_TITLE, open=False):
                             enable_subtitles = gr.Checkbox(label=LABEL_ENABLE_KARAOKE, value=False, info=INFO_ENABLE_KARAOKE)
                             with gr.Row():
@@ -1006,6 +1036,7 @@ def create_ui() -> gr.Blocks:
             inputs=[
                 audio_input, video_input,
                 output_filename, processing_mode, custom_fps,
+                mv_ai_vision_tier,
                 enable_subtitles, lyrics_mode, lyrics_text, lyrics_file,
                 lyrics_style, lyrics_palette, lyrics_position,
                 session_state
