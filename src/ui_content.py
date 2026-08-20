@@ -403,14 +403,23 @@ CHOICES_AI_STRATEGY = [
     ("🎨 Cinematic & Visual Aesthetics", "cinematic_beauty"),
 ]
 
-LABEL_ENABLE_QWEN = "🧠 Enable Qwen3-VL AI Vision"
-INFO_ENABLE_QWEN = "Use local Qwen3-VL model to tag hype, action, combat, and emotional moments."
+LABEL_ENABLE_QWEN = "🧠 Enable AI Vision Analysis"
+INFO_ENABLE_QWEN = "Tags visual hype, action dynamics, combat choreography, and aesthetic scenes."
+
+LABEL_AI_VISION_TIER = "🧠 AI Vision Model Tier"
+INFO_AI_VISION_TIER = "Choose between ultra-fast visual dynamics, balanced standard AI, or deep cinematic intelligence."
+CHOICES_AI_VISION_TIER = [
+    ("⚡ Fast Mode (Visual Dynamics - Ultra-Fast <2s, 0 VRAM)", "fast_siglip"),
+    ("🚀 Standard Mode (Qwen3-VL 2B - Balanced AI)", "standard_2b"),
+    ("👑 Cinematic Pro Mode (Qwen2.5-VL 7B - Deep Semantic HQ)", "pro_7b"),
+]
 
 BTN_GENERATE_SHORTS = "🚀 Generate 9:16 Clips for TikTok / Shorts"
 BTN_GENERATE_FROM_GENERATED = "📱 Generate TikTok / Shorts Clips (9:16) from this Video"
 
 LABEL_SHORTS_OUTPUT_STATUS = "📊 Progress & Statistics"
 LABEL_SHORTS_GALLERY = "📱 Generated 9:16 Vertical Clips"
+
 
 # ============================================================================
 # KARAOKE & SYNCHRONIZED LYRICS LABELS

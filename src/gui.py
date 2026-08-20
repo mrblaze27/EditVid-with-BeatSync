@@ -95,6 +95,7 @@ from gpu_cpu_utils import (
     NVENC_AVAILABLE,
     set_gpu_mode,
 )
+
 from paths import (
     GRADIO_TEMP_DIR,
     get_input_dir,
@@ -645,15 +646,16 @@ def _process_social_clips_impl(
     framing_mode: str,
     ai_strategy: str,
     enable_qwen: bool,
+    ai_vision_tier: str,
     processing_mode: str,
-    enable_subtitles: bool = False,
-    lyrics_mode: str = "auto_whisper",
-    lyrics_text: str = None,
-    lyrics_file: str = None,
-    lyrics_style: str = "tiktok_bounce",
-    lyrics_palette: str = "tiktok_yellow",
-    lyrics_position: str = "bottom",
-    progress_callback: Callable[[str], None] | None = None,
+    enable_subtitles: bool,
+    lyrics_mode: str,
+    lyrics_text: str,
+    lyrics_file: str,
+    lyrics_style: str,
+    lyrics_palette: str,
+    lyrics_position: str,
+    progress_callback: Callable[[str], None] = None,
     console_logger: StageConsoleLogger | None = None,
 ) -> Tuple[str, List[str | None], str]:
     if not video_file:
@@ -678,6 +680,7 @@ def _process_social_clips_impl(
         framing_mode=framing_mode,
         ai_strategy=ai_strategy,
         enable_qwen_ai=bool(enable_qwen),
+        ai_vision_tier=ai_vision_tier,
         use_gpu=use_gpu,
         gpu_encoder=gpu_encoder,
         enable_subtitles=bool(enable_subtitles),
@@ -711,6 +714,7 @@ def process_social_clips(
     framing_mode: str,
     ai_strategy: str,
     enable_qwen: bool,
+    ai_vision_tier: str,
     processing_mode: str,
     enable_subtitles: bool,
     lyrics_mode: str,
@@ -741,6 +745,7 @@ def process_social_clips(
                     framing_mode=framing_mode,
                     ai_strategy=ai_strategy,
                     enable_qwen=enable_qwen,
+                    ai_vision_tier=ai_vision_tier,
                     processing_mode=processing_mode,
                     enable_subtitles=enable_subtitles,
                     lyrics_mode=lyrics_mode,
@@ -928,11 +933,18 @@ def create_ui() -> gr.Blocks:
                                 value="smart_viral",
                                 label=LABEL_AI_STRATEGY,
                             )
-                            shorts_enable_qwen = gr.Checkbox(
-                                value=True,
-                                label=LABEL_ENABLE_QWEN,
-                                info=INFO_ENABLE_QWEN,
-                            )
+                            with gr.Row():
+                                shorts_enable_qwen = gr.Checkbox(
+                                    value=True,
+                                    label=LABEL_ENABLE_QWEN,
+                                    info=INFO_ENABLE_QWEN,
+                                )
+                                shorts_ai_vision_tier = gr.Dropdown(
+                                    choices=CHOICES_AI_VISION_TIER,
+                                    value="standard_2b",
+                                    label=LABEL_AI_VISION_TIER,
+                                    info=INFO_AI_VISION_TIER,
+                                )
 
                         with gr.Accordion(GROUP_KARAOKE_TITLE, open=False):
                             shorts_enable_subtitles = gr.Checkbox(label=LABEL_ENABLE_KARAOKE, value=False, info=INFO_ENABLE_KARAOKE)
@@ -1017,6 +1029,7 @@ def create_ui() -> gr.Blocks:
                 shorts_framing_mode,
                 shorts_ai_strategy,
                 shorts_enable_qwen,
+                shorts_ai_vision_tier,
                 shorts_proc_mode,
                 shorts_enable_subtitles,
                 shorts_lyrics_mode,

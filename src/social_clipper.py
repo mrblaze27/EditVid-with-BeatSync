@@ -224,44 +224,38 @@ def _measure_visual_motion_sampled(video_path: str, sample_interval: float = 0.5
     return results
 
 
-def _get_qwen_ai_tags_for_video(video_path: str,
-                                scene_changes: List[float],
-                                duration: float,
-                                enable_ai: bool = True) -> List[Dict[str, Any]]:
-    """Fetch or run Qwen3-VL tags for candidate moments in the video."""
+def _get_qwen_ai_tags_for_video(
+    video_path: str,
+    scene_changes: List[float],
+    duration: float,
+    enable_ai: bool = True,
+    ai_vision_tier: str = "standard_2b",
+    progress_callback: Optional[Callable[[str], None]] = None,
+) -> List[Dict[str, Any]]:
+    """Fetch or run AI Vision tags across the selected AI tier."""
     if not enable_ai:
         return []
 
     try:
-        from video_analysis import (
-            DEFAULT_QWEN_MODEL_DIR,
-            _cache_path,
-            _load_cache,
-            _qwen_backend_available,
-            analyze_video_sources,
+        from vision_engine import analyze_video_moments_with_tier
+
+        # Generate evenly spaced candidate timestamps across duration and scene cuts
+        timestamps = sorted(set(
+            [float(s) for s in scene_changes if 0.0 <= float(s) <= duration] +
+            list(np.linspace(0.5, max(0.5, duration - 0.5), num=min(60, max(10, int(duration // 4)))))
+        ))
+
+        return analyze_video_moments_with_tier(
+            video_path=video_path,
+            candidate_timestamps=timestamps,
+            model_tier=ai_vision_tier,
+            progress_callback=progress_callback,
         )
-
-        # Check existing cache
-        cache_p = _cache_path(video_path, enable_ai=True, qwen_model_path=DEFAULT_QWEN_MODEL_DIR)
-        cached_data = _load_cache(cache_p, require_ai=True)
-        if cached_data and cached_data.get("candidates"):
-            return cached_data["candidates"]
-
-        # If Qwen backend available, run quick analysis
-        if _qwen_backend_available(DEFAULT_QWEN_MODEL_DIR):
-            analysis = analyze_video_sources(
-                video_files=[video_path],
-                audio_profile=None,
-                use_gpu=GPU_AVAILABLE,
-                enable_ai=True,
-                qwen_model_path=DEFAULT_QWEN_MODEL_DIR,
-            )
-            if analysis and analysis.get("candidates"):
-                return analysis["candidates"]
     except Exception as e:
-        print(f"   ⚠️  Qwen AI video tagging skipped: {e}")
+        print(f"   ⚠️  AI video tagging skipped: {e}")
 
     return []
+
 
 
 def _interpolate_time_series(target_time: float, times: np.ndarray, values: np.ndarray, default: float = 0.5) -> float:
@@ -575,6 +569,7 @@ def generate_social_clips(
     framing_mode: str = "smart_crop",
     ai_strategy: str = "smart_viral",
     enable_qwen_ai: bool = True,
+    ai_vision_tier: str = "standard_2b",
     use_gpu: bool = True,
     gpu_encoder: str = "h264_nvenc",
     custom_fps: float = None,
@@ -599,7 +594,8 @@ def generate_social_clips(
         duration_mode: 'auto_15_30', '15s', '30s', '60s'.
         framing_mode: 'smart_crop', 'blur_pad', 'fit_letterbox'.
         ai_strategy: 'smart_viral', 'peak_energy_drop', 'visual_action', 'cinematic_beauty'.
-        enable_qwen_ai: Toggle local Qwen3-VL analysis.
+        enable_qwen_ai: Toggle local AI Vision analysis.
+        ai_vision_tier: 'fast_siglip', 'standard_2b', 'pro_7b'.
         use_gpu: Enable NVENC / CUDA acceleration.
         gpu_encoder: 'h264_nvenc', 'hevc_nvenc', or 'cpu'.
         custom_fps: Desired FPS.
@@ -666,14 +662,22 @@ def generate_social_clips(
         visual_samples = _measure_visual_motion_sampled(video_path, sample_interval=0.4)
         _notify(3, f"Sampled {len(visual_samples)} visual motion checkpoints")
 
-        # Step 4: AI Semantic Vision (Qwen3-VL)
+        # Step 4: AI Semantic Vision
         ai_candidates = []
         if enable_qwen_ai:
-            _notify(4, "Running Qwen3-VL AI Vision Tagging for action, hype & aesthetic moments...")
-            ai_candidates = _get_qwen_ai_tags_for_video(video_path, scene_changes, duration, enable_ai=True)
+            _notify(4, f"Running AI Vision Tagging ({ai_vision_tier}) for action, hype & aesthetic moments...")
+            ai_candidates = _get_qwen_ai_tags_for_video(
+                video_path=video_path,
+                scene_changes=scene_changes,
+                duration=duration,
+                enable_ai=True,
+                ai_vision_tier=ai_vision_tier,
+                progress_callback=progress_callback,
+            )
             _notify(4, f"Found {len(ai_candidates)} AI-tagged candidate moments")
         else:
-            _notify(4, "Qwen AI vision tagging disabled by user; using deterministic scoring")
+            _notify(4, "AI vision tagging disabled by user; using deterministic scoring")
+
 
         # Step 5: Social Viral Scoring & Highlight Selection
         _notify(5, f"Computing viral engagement curve ({ai_strategy}) and selecting top {clip_count} moments...")

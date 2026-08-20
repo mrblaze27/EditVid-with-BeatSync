@@ -35,17 +35,20 @@ BeatSync Engine analyzes music rhythm, energy, sections, and source-video moment
 *   **🌊 Energy-Wave Cut Density:** Calm sections hold longer; drops, impacts, and high-energy parts cut faster.
 *   **🎼 Song Structure Detection:** Finds broad intro, verse, chorus, bridge, drop, build, body, and outro-style sections.
 *   **🥁 Rhythm Feature Analysis:** Reads kick, clap, bass, hi-hat, novelty, impact, bar anchors, and phrase anchors.
-*   **🎬 Source Video Moment Library:** Scans source videos for motion, quality, scene changes, action, beauty, and usable moments.
-*   **🧠 Qwen3-VL Semantic Tags:** Optional local llama.cpp Vulkan vision-language tagging for action, combat, chase, beauty, emotion, drops, builds, and soft moments.
+*   **🧠 Multi-Tier AI Vision Intelligence:** Choose between 3 tiers:
+    *   **⚡ Fast Mode:** Ultra-fast (<2s, 0 VRAM) visual motion and aesthetic feature scoring.
+    *   **🚀 Standard Mode (Qwen3-VL 2B):** Balanced semantic tagging for action, combat, beauty, and emotional beats.
+    *   **👑 Cinematic Pro Mode (Qwen2.5-VL 7B):** Deep cinematic comprehension on high-end GPUs.
 *   **🎯 Audio-Visual Planner:** Chooses planned source moments instead of relying only on random clip sampling.
-*   **⚡ GPU Acceleration:** Uses CuPy CTK wheel libraries for CUDA analysis when available, llama.cpp Vulkan for Qwen3-VL, and FFmpeg NVENC for fast H.264/H.265 encoding.
+*   **⚡ GPU Acceleration:** Uses CuPy CTK wheel libraries for CUDA analysis when available, llama.cpp Vulkan for Qwen-VL, and FFmpeg NVENC for fast H.264/H.265 encoding.
 *   **🎞️ Frame-Locked Timeline:** Quantizes cut boundaries to absolute output frames to avoid timing drift.
 *   **🎬 Multiple Export Modes:** NVENC H.264, NVENC HEVC, CPU H.264, and ProRes 422 Proxy precise mode.
 *   **📱 TikTok & Shorts Auto-Clipper:** Automatically extracts vertical 9:16 (1080x1920) clips with AI viral scoring, beat/drop alignment, smart crop, and blurred background fill.
 *   **🎤 Synchronized Karaoke & Animated Lyrics:** Burns TikTok-style word-by-word bouncing captions or karaoke sweeps synced to song vocals using Whisper AI or user-provided lyrics.
 *   **📦 Portable Runtime:** Designed around bundled Python, FFmpeg, llama.cpp Vulkan, CuPy CTK, and local GGUF model files.
-*   **🌐 Local Web UI:** Launches a Gradio interface at `http://127.0.0.1:7860` by default.
+*   **🌐 Local Web UI:** Launches an English Gradio interface at `http://127.0.0.1:7860` by default.
 *   **🧹 Local Caches:** Reuses visual analysis data so repeated runs can be faster.
+
 
 ---
 
