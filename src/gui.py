@@ -788,16 +788,19 @@ def _process_social_clips_impl(
     )
 
     if not res.get("success"):
-        return f"❌ Error: {res.get('error', 'Generation failed')}", [None] * 5, ""
+        return f"❌ Error: {res.get('error', 'Generation failed')}", [None] * 5
 
     clips = res.get("clips", [])
     clip_paths = [None] * 5
     for idx, c in enumerate(clips[:5]):
         clip_paths[idx] = c.file_path
 
-    summary_md = _format_shorts_summary_markdown(res)
-    status_text = f"✅ Complete (100%) - {len(clips)} vertical 9:16 clips created in {res.get('total_processing_seconds', 0):.1f}s."
-    return status_text, clip_paths, summary_md
+    status_text = (
+        f"✅ {len(clips)} vertical 9:16 clips created successfully in {res.get('total_processing_seconds', 0):.1f}s!\n"
+        f"📐 Format: 1080x1920 (9:16) | 🧠 Strategy: {res.get('ai_strategy', 'smart_viral')}\n"
+        f"📁 Output: {res.get('output_dir')}"
+    )
+    return status_text, clip_paths
 
 
 def process_social_clips(
@@ -817,9 +820,9 @@ def process_social_clips(
     lyrics_palette: str,
     lyrics_position: str,
     progress=gr.Progress(track_tqdm=True)
-) -> Iterator[Tuple[str, str | None, str | None, str | None, str | None, str | None, str]]:
+) -> Iterator[Tuple[str, str | None, str | None, str | None, str | None, str | None]]:
     status_queue: queue.Queue[str | None] = queue.Queue()
-    result_queue: queue.Queue[Tuple[str, List[str | None], str]] = queue.Queue(maxsize=1)
+    result_queue: queue.Queue[Tuple[str, List[str | None]]] = queue.Queue(maxsize=1)
     console_logger = StageConsoleLogger(sys.__stdout__)
     quiet_console = QuietConsole()
 
@@ -853,7 +856,7 @@ def process_social_clips(
                 )
         except Exception as e:
             console_logger.line(f"Error: {e}")
-            res = f"❌ Error: {e}", [None] * 5, ""
+            res = f"❌ Error: {e}", [None] * 5
         finally:
             console_logger.finish()
         result_queue.put(res)
@@ -866,7 +869,7 @@ def process_social_clips(
     tracker = ProgressTracker()
     last_status = "⏳ [Stage 1/6 • 1% Complete]\nInitializing 9:16 vertical clipper..."
     progress(0.01, desc="[Stage 1/6 - 1%] Starting Clipper...")
-    yield last_status, None, None, None, None, None, ""
+    yield last_status, None, None, None, None, None
 
     while True:
         msg = status_queue.get()
@@ -879,15 +882,15 @@ def process_social_clips(
             pass
         if box_text != last_status:
             last_status = box_text
-            yield box_text, None, None, None, None, None, ""
+            yield box_text, None, None, None, None, None
 
     thread.join()
     try:
         progress(1.0, desc="✅ Complete! (100%)")
     except Exception:
         pass
-    final_status, clip_paths, summary_md = result_queue.get()
-    yield final_status, clip_paths[0], clip_paths[1], clip_paths[2], clip_paths[3], clip_paths[4], summary_md
+    final_status, clip_paths = result_queue.get()
+    yield final_status, clip_paths[0], clip_paths[1], clip_paths[2], clip_paths[3], clip_paths[4]
 
 
 
@@ -1100,7 +1103,6 @@ def create_ui() -> gr.Blocks:
                             max_lines=3,
                             elem_id='shorts-status-box'
                         )
-                        shorts_summary_md = gr.Markdown("")
                         
                         with gr.Tabs():
                             with gr.TabItem("Clip #1"):
@@ -1159,7 +1161,6 @@ def create_ui() -> gr.Blocks:
             outputs=[
                 shorts_status_output,
                 clip_v1, clip_v2, clip_v3, clip_v4, clip_v5,
-                shorts_summary_md,
             ],
             show_progress='full'
         )
