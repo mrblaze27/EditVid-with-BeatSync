@@ -742,25 +742,26 @@ def create_music_video(audio_file: str, video_files: VideoList, beat_times: Beat
 
                 # Case 2: Whisper or User Text
                 if not phrases:
-                    whisper_words = []
-                    if lyrics_mode in ("auto_whisper", "user_lyrics"):
-                        whisper_words = transcribe_audio_whisper(
-                            audio_path=audio_file,
-                            model_size="base",
-                            progress_callback=progress_callback
-                        )
-
-                    if lyrics_text and lyrics_text.strip():
+                    if lyrics_mode == "user_lyrics" or (lyrics_text and lyrics_text.strip()):
+                        # Instant beat alignment with user provided text
                         final_words = align_user_lyrics_with_audio(
-                            provided_lyrics_text=lyrics_text,
-                            audio_words=whisper_words,
+                            provided_lyrics_text=lyrics_text or "",
+                            audio_words=None,
                             audio_duration=audio_duration,
                             beat_times=selected_beats,
                         )
-                    else:
+                    elif lyrics_mode == "auto_whisper":
+                        whisper_words = transcribe_audio_whisper(
+                            audio_path=audio_file,
+                            model_size="tiny",
+                            progress_callback=progress_callback
+                        )
                         final_words = whisper_words
+                    else:
+                        final_words = []
 
                     phrases = group_words_into_phrases(final_words, max_words_per_line=4)
+
 
                 if phrases:
                     w_out, h_out = get_video_resolution(output_file)

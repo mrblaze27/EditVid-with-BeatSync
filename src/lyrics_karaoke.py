@@ -153,7 +153,7 @@ def _format_srt_timestamp(seconds: float) -> str:
 
 def transcribe_audio_whisper(
     audio_path: str,
-    model_size: str = "base",
+    model_size: str = "tiny",
     language: Optional[str] = None,
     progress_callback: Optional[Callable[[str], None]] = None,
 ) -> List[TimedWord]:
@@ -169,29 +169,30 @@ def transcribe_audio_whisper(
         if progress_callback:
             progress_callback(f"Caricamento modello Whisper AI ({model_size})...")
 
-        # Use GPU CUDA if available, fallback to CPU
-        device = "cuda" if GPU_AVAILABLE else "cpu"
-        compute_type = "float16" if GPU_AVAILABLE else "int8"
-
+        # CPU mode with int8 is fast, robust, and avoids CUDA DLL lockups
         try:
-            model = WhisperModel(model_size, device=device, compute_type=compute_type)
-        except Exception:
-            # Fallback to CPU float32 if specific CUDA compute type fails
             model = WhisperModel(model_size, device="cpu", compute_type="int8")
+        except Exception:
+            model = WhisperModel(model_size, device="cpu", compute_type="float32")
 
         if progress_callback:
-            progress_callback("Trascrizione vocale e calcolo timestamp parole in corso...")
+            progress_callback("Trascrizione vocale in corso...")
 
         segments, info = model.transcribe(
             audio_path,
             word_timestamps=True,
             language=language if language and language != "auto" else None,
             vad_filter=True,
-            vad_parameters=dict(min_silence_duration_ms=400),
+            vad_parameters=dict(min_silence_duration_ms=300),
         )
 
+        total_dur = getattr(info, "duration", 0.0) or 0.0
         timed_words: List[TimedWord] = []
+
         for segment in segments:
+            if progress_callback and total_dur > 0:
+                progress_callback(f"Trascrizione Whisper: {int(segment.start)}s / {int(total_dur)}s ({len(timed_words)} parole)...")
+
             if hasattr(segment, "words") and segment.words:
                 for w in segment.words:
                     word_str = w.word.strip()
@@ -203,6 +204,9 @@ def transcribe_audio_whisper(
                             confidence=float(getattr(w, "probability", 1.0)),
                         ))
 
+        if progress_callback:
+            progress_callback(f"Trascrizione completata: {len(timed_words)} parole rilevate.")
+
         return timed_words
     except Exception as e:
         print(f"   ⚠️  Whisper transcription error: {e}")
@@ -211,7 +215,7 @@ def transcribe_audio_whisper(
 
 def align_user_lyrics_with_audio(
     provided_lyrics_text: str,
-    audio_words: List[TimedWord],
+    audio_words: Optional[List[TimedWord]] = None,
     audio_duration: float = 0.0,
     beat_times: Optional[List[float]] = None,
 ) -> List[TimedWord]:
@@ -219,11 +223,12 @@ def align_user_lyrics_with_audio(
     Align user-provided lyrics text with audio timestamps:
     - If Whisper audio_words are available, uses fuzzy matching to map user words
       onto Whisper's exact timing boundaries.
-    - If Whisper words are empty, distributes lines across beat grid / duration.
+    - If Whisper words are empty or skipped (manual mode), smartly distributes lines across
+      the detected musical beat grid and song duration.
     """
     raw_lines = [line.strip() for line in provided_lyrics_text.splitlines() if line.strip()]
     if not raw_lines:
-        return audio_words
+        return audio_words or []
 
     user_words: List[str] = []
     for line in raw_lines:
@@ -231,9 +236,9 @@ def align_user_lyrics_with_audio(
         user_words.extend(words_in_line)
 
     if not user_words:
-        return audio_words
+        return audio_words or []
 
-    # If we have Whisper word timestamps, align user words with audio words
+    # 1. If we have Whisper word timestamps, align user words with audio words
     if audio_words and len(audio_words) > 0:
         whisper_clean = [_clean_text_word(w.word).lower() for w in audio_words]
         user_clean = [_clean_text_word(w).lower() for w in user_words]
@@ -255,7 +260,6 @@ def align_user_lyrics_with_audio(
                     last_end = tw.end
 
             elif tag in ('replace', 'insert', 'delete'):
-                # Handle replaced or inserted words by interpolating time window
                 t_start = audio_words[i1].start if i1 < len(audio_words) else last_end
                 t_end = audio_words[min(i2, len(audio_words) - 1)].end if i2 <= len(audio_words) and i1 < len(audio_words) else (t_start + 2.0)
                 span_duration = max(0.2, t_end - t_start)
@@ -277,14 +281,40 @@ def align_user_lyrics_with_audio(
         if aligned_words:
             return aligned_words
 
-    # Fallback: Distribute provided lyrics over beat times or song duration
+    # 2. Beat-Grid Alignment (Fast Manual Mode)
+    # If beats are detected, align user lyrics smoothly to musical beats!
+    if beat_times is not None and len(beat_times) >= 4:
+        beats_clean = [float(b) for b in beat_times if float(b) >= 0.0]
+        if len(beats_clean) >= 4:
+            total_beats = len(beats_clean)
+            total_words = len(user_words)
+            aligned_words = []
+
+            # Group 2-4 words per beat interval
+            step = max(1.0, float(total_beats - 2) / max(1, total_words))
+            for i, w in enumerate(user_words):
+                beat_idx = int(round(1 + i * step))
+                beat_idx = min(beat_idx, total_beats - 2)
+                w_start = beats_clean[beat_idx]
+                next_b = beats_clean[min(total_beats - 1, beat_idx + 1)]
+                w_end = min(w_start + max(0.3, (next_b - w_start) * 0.9), w_start + 2.5)
+                aligned_words.append(TimedWord(
+                    word=w,
+                    start=w_start,
+                    end=w_end,
+                    confidence=0.9,
+                ))
+            return aligned_words
+
+    # 3. Fallback: Linear distribution over duration
     if audio_duration <= 0.0:
         audio_duration = 30.0
 
     aligned_words = []
     total_words = len(user_words)
-    time_per_word = max(0.25, (audio_duration * 0.85) / max(1, total_words))
-    start_offset = min(2.0, audio_duration * 0.05)
+    start_offset = min(1.5, audio_duration * 0.05)
+    usable_dur = max(2.0, audio_duration * 0.9 - start_offset)
+    time_per_word = usable_dur / max(1, total_words)
 
     for i, w in enumerate(user_words):
         w_start = start_offset + i * time_per_word
@@ -293,10 +323,11 @@ def align_user_lyrics_with_audio(
             word=w,
             start=w_start,
             end=w_end,
-            confidence=0.7,
+            confidence=0.75,
         ))
 
     return aligned_words
+
 
 
 def parse_lrc_or_srt(text_or_path: str) -> List[TimedPhrase]:
