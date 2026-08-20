@@ -69,6 +69,7 @@ BeatSync Engine/
 │       └── mmproj-Qwen3VL-2B-Instruct-F16.gguf
 ├── src/
 │   ├── gui.py                               # Gradio web UI
+│   ├── social_clipper.py                   # TikTok & Shorts 9:16 AI Clipper
 │   ├── video_processor.py                   # Rendering pipeline
 │   ├── video_analysis.py                    # Source-video visual library
 │   ├── ffmpeg_processing.py                 # FFmpeg/FFprobe helpers
@@ -88,9 +89,11 @@ BeatSync Engine/
 │   ├── gradio_uploads/                      # Gradio upload/session temp files
 │   └── video_analysis_cache/                # Visual analysis cache
 └── output/                                  # Final exported videos
+    └── tiktok_shorts/                       # Exported 9:16 vertical social clips
 ```
 
 > The app creates `input/` and `output/` subfolders automatically if they are missing.
+
 
 ---
 
@@ -202,7 +205,37 @@ The UI shows a preview and success stats after the render finishes.
 
 ---
 
+## 📱 TikTok & Shorts Auto-Clipper (Vertical 9:16)
+
+BeatSync Engine includes a dedicated AI-powered **TikTok, Reels & YouTube Shorts Auto-Clipper** that turns long-form or freshly rendered music videos into viral vertical clips.
+
+### 🌟 Key Capabilities
+
+*   **🧠 AI & Audio-Visual Highlight Scoring:**
+    *   **Qwen3-VL Vision Tagging:** Identifies action intensity, combat, explosions, beauty score, character focus, and hype moments.
+    *   **Audio Rhythm & Beat-Drop Detection:** Analyzes the music energy wave, RMS dynamics, and big drop impacts using `librosa`.
+    *   **Social Viral Curve:** Combines audio energy, visual motion, scene cuts, and semantic AI tags to select the top non-overlapping highlight intervals.
+*   **⏱️ Smart Duration Modes:**
+    *   **Auto (15-30s):** Dynamically bounds the clip to musical phrase changes and drop climaxes.
+    *   **15s (Quick Hook):** High-retention short hook for rapid scrolling.
+    *   **30s (Social Standard):** Covers buildup + drop + full chorus.
+    *   **60s (Story / Extended Highlight):** Extended section highlight.
+*   **📐 3 Vertical 9:16 Framing Modes (1080x1920):**
+    *   **Smart Center Crop (9:16):** Sharp center crop focused on central motion and action.
+    *   **Blurred Background Fill (9:16):** 16:9 original footage layered centered over an ambient blurred, zoomed vertical background (classic viral TikTok aesthetic).
+    *   **Fit Letterbox (9:16):** Centered with clean black letterbox padding.
+*   **🎵 Loop-Friendly Audio:**
+    *   Snaps start and end boundaries to musical downbeats or scene cuts.
+    *   Applies a gentle 0.15s audio fade-in/fade-out to eliminate pops and enable smooth social media looping.
+*   **🎮 Dual Workflow:**
+    1.  **Instant One-Click from Generator:** Click `📱 Genera Clip TikTok / Shorts (9:16) da questo Video` immediately after rendering your music video.
+    2.  **Standalone Clipper Tab:** Upload any external `.mp4`, `.mkv`, or `.mov` full video in the **`📱 TikTok & Shorts Auto-Clipper (9:16)`** tab.
+*   **📁 Export Folder:** All vertical clips are organized and saved automatically to `output/tiktok_shorts/`.
+
+---
+
 ## 🎵 Auto Mode Details
+
 
 Auto Mode is the main creative engine.
 
