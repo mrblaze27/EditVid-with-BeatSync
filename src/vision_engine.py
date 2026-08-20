@@ -132,8 +132,13 @@ def run_fast_vision_analysis(
             "description": f"Fast Vision tagged frame at {t:.2f}s (Action: {action_intensity:.2f}, Beauty: {beauty_score:.2f})",
         })
 
+        if progress_callback and (len(results) % 5 == 0 or len(results) == len(candidate_timestamps)):
+            sub_pct = int(round(len(results) / max(1, len(candidate_timestamps)) * 100))
+            progress_callback(f"Stage 4: Fast Vision analyzing moment {len(results)}/{len(candidate_timestamps)} ({sub_pct}%)...")
+
     cap.release()
     return results
+
 
 
 # ============================================================================

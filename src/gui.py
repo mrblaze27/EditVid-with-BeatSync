@@ -155,38 +155,54 @@ STAGE_PROGRESS_MAP = {
 }
 
 
-def parse_progress_info(msg: str, current_stage: int = 1) -> Tuple[float, int, str, str]:
-    stage_num = current_stage
-    match = re.search(r'Stage\s*(\d+)', msg, re.IGNORECASE)
-    if match:
-        stage_num = int(match.group(1))
-    
-    stage_info = STAGE_PROGRESS_MAP.get(stage_num, (0.0, 1.0, "Processing"))
-    start_pct, end_pct, stage_name = stage_info
-    stage_span = end_pct - start_pct
-    
-    sub_pct = 0.25
-    pct_match = re.search(r'(\d+(?:\.\d+)?)\s*%', msg)
-    clip_match = re.search(r'(?:Clip|cuts?|segments?)\s*#?(\d+)[ /]+(\d+)', msg, re.IGNORECASE)
-    
-    if pct_match and 'stage' not in msg.lower():
-        sub_pct = min(1.0, max(0.0, float(pct_match.group(1)) / 100.0))
-    elif clip_match:
-        c_idx, c_total = int(clip_match.group(1)), max(1, int(clip_match.group(2)))
-        sub_pct = min(1.0, max(0.0, c_idx / c_total))
+class ProgressTracker:
+    def __init__(self):
+        self.current_stage = 1
+        self.stage_step = 0
+        self.last_fraction = 0.01
+
+    def update(self, msg: str) -> Tuple[float, str, str]:
+        stage_num = self.current_stage
+        match = re.search(r'Stage\s*(\d+)', msg, re.IGNORECASE)
+        if match:
+            new_stage = int(match.group(1))
+            if new_stage != self.current_stage:
+                self.current_stage = new_stage
+                self.stage_step = 0
+            stage_num = new_stage
         
-    fraction = start_pct + stage_span * sub_pct
-    total_pct = int(round(fraction * 100))
-    
-    clean_msg = re.sub(r'^Stage\s*\d+:\s*', '', msg).strip()
-    desc = f"[Stage {stage_num}/6 - {total_pct}%] {stage_name}"
-    box_text = f"⏳ [Stage {stage_num}/6 • {total_pct}% Complete]\n{clean_msg}"
-    return fraction, stage_num, desc, box_text
+        self.stage_step += 1
+        stage_info = STAGE_PROGRESS_MAP.get(stage_num, (0.0, 1.0, "Processing"))
+        start_pct, end_pct, stage_name = stage_info
+        stage_span = end_pct - start_pct
+
+        pct_match = re.search(r'(\d+(?:\.\d+)?)\s*%', msg)
+        clip_match = re.search(r'(?:Clip|cuts?|segments?|checkpoint|frame|moment)\s*#?(\d+)[ /]+(\d+)', msg, re.IGNORECASE)
+
+        if pct_match and 'stage' not in msg.lower():
+            sub_pct = min(1.0, max(0.0, float(pct_match.group(1)) / 100.0))
+        elif clip_match:
+            c_idx, c_total = int(clip_match.group(1)), max(1, int(clip_match.group(2)))
+            sub_pct = min(1.0, max(0.0, c_idx / c_total))
+        else:
+            # Gradual step progression within stage
+            sub_pct = min(0.85, self.stage_step * 0.20)
+
+        fraction = min(1.0, max(self.last_fraction, start_pct + stage_span * sub_pct))
+        self.last_fraction = fraction
+        total_pct = int(round(fraction * 100))
+
+        clean_msg = re.sub(r'^Stage\s*\d+:\s*', '', msg).strip()
+        desc = f"[Stage {stage_num}/6 - {total_pct}%] {stage_name}"
+        box_text = f"⏳ [Stage {stage_num}/6 • {total_pct}% Complete]\n{clean_msg}"
+        return fraction, desc, box_text
 
 
 def _stage_status(stage_number: int) -> str:
-    _, _, desc, box_text = parse_progress_info(f"Stage {stage_number}: Initializing stage...", stage_number)
-    return box_text
+    stage_info = STAGE_PROGRESS_MAP.get(stage_number, (0.0, 1.0, "Processing"))
+    start_pct = int(round(stage_info[0] * 100))
+    return f"⏳ [Stage {stage_number}/6 • {start_pct}% Complete]\nInitializing {stage_info[2]}..."
+
 
 
 
@@ -656,7 +672,7 @@ def process_video(
     console_logger.start_stage(1)
     thread.start()
 
-    current_stage = 1
+    tracker = ProgressTracker()
     last_status = _stage_status(1)
     progress(0.01, desc="[Stage 1/6 - 1%] Starting BeatSync...")
     yield None, last_status, session_state
@@ -665,7 +681,7 @@ def process_video(
         message = status_queue.get()
         if message is None:
             break
-        fraction, current_stage, desc, box_text = parse_progress_info(message, current_stage)
+        fraction, desc, box_text = tracker.update(message)
         try:
             progress(fraction, desc=desc)
         except Exception:
@@ -689,18 +705,18 @@ def process_video(
 
 def _format_shorts_summary_markdown(result: Dict[str, Any]) -> str:
     if not result.get("success"):
-        return f"❌ **Errore generazione clip**: {result.get('error', 'Sconosciuto')}"
+        return f"❌ **Error generating clips**: {result.get('error', 'Unknown')}"
 
     clips = result.get("clips", [])
     if not clips:
-        return "⚠️ Nessuna clip estratta."
+        return "⚠️ No clips extracted."
 
     total_s = result.get("total_processing_seconds", 0.0)
     lines = [
-        f"### ✅ {len(clips)} Clip TikTok / Shorts (9:16) Generate con Successo!",
-        f"⏱️ **Tempo di elaborazione**: {total_s:.1f}s | 📐 **Formato**: 1080x1920 (9:16) | 🧠 **Strategia**: `{result.get('ai_strategy')}`",
+        f"### ✅ {len(clips)} TikTok / Shorts (9:16) Clips Created Successfully!",
+        f"⏱️ **Processing Time**: {total_s:.1f}s | 📐 **Format**: 1080x1920 (9:16) | 🧠 **Strategy**: `{result.get('ai_strategy')}`",
         "",
-        "| Clip | Titolo / Highlight | Range Temporale | Durata | Punteggio Virale | Nome File |",
+        "| Clip | Highlight / Title | Time Range | Duration | Viral Score | Output File |",
         "| :--- | :--- | :--- | :--- | :--- | :--- |",
     ]
 
@@ -712,7 +728,7 @@ def _format_shorts_summary_markdown(result: Dict[str, Any]) -> str:
         )
 
     lines.append("")
-    lines.append(f"📁 *Cartella di output:* `{result.get('output_dir')}`")
+    lines.append(f"📁 *Output directory:* `{result.get('output_dir')}`")
     return "\n".join(lines)
 
 
@@ -748,7 +764,7 @@ def _process_social_clips_impl(
     gpu_encoder = processing_mode if use_nvenc else 'cpu'
 
     if progress_callback:
-        progress_callback("Starting audio-visual & AI analysis of video...")
+        progress_callback("Stage 1: Probing input video properties...")
 
     res = generate_social_clips(
         video_path=local_path,
@@ -780,7 +796,7 @@ def _process_social_clips_impl(
         clip_paths[idx] = c.file_path
 
     summary_md = _format_shorts_summary_markdown(res)
-    status_text = f"✅ Completed! {len(clips)} vertical 9:16 clips created in {res.get('total_processing_seconds', 0):.1f}s."
+    status_text = f"✅ Complete (100%) - {len(clips)} vertical 9:16 clips created in {res.get('total_processing_seconds', 0):.1f}s."
     return status_text, clip_paths, summary_md
 
 
@@ -847,7 +863,7 @@ def process_social_clips(
     console_logger.start_stage(1)
     thread.start()
 
-    current_stage = 1
+    tracker = ProgressTracker()
     last_status = "⏳ [Stage 1/6 • 1% Complete]\nInitializing 9:16 vertical clipper..."
     progress(0.01, desc="[Stage 1/6 - 1%] Starting Clipper...")
     yield last_status, None, None, None, None, None, ""
@@ -856,7 +872,7 @@ def process_social_clips(
         msg = status_queue.get()
         if msg is None:
             break
-        fraction, current_stage, desc, box_text = parse_progress_info(msg, current_stage)
+        fraction, desc, box_text = tracker.update(msg)
         try:
             progress(fraction, desc=desc)
         except Exception:
@@ -872,6 +888,7 @@ def process_social_clips(
         pass
     final_status, clip_paths, summary_md = result_queue.get()
     yield final_status, clip_paths[0], clip_paths[1], clip_paths[2], clip_paths[3], clip_paths[4], summary_md
+
 
 
 

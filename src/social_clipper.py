@@ -168,7 +168,11 @@ def _analyze_audio_timeline(audio_path: str, duration: float) -> Dict[str, Any]:
         return {"has_audio": False}
 
 
-def _measure_visual_motion_sampled(video_path: str, sample_interval: float = 0.5) -> List[Dict[str, float]]:
+def _measure_visual_motion_sampled(
+    video_path: str,
+    sample_interval: float = 0.5,
+    progress_callback: Optional[Callable[[str], None]] = None,
+) -> List[Dict[str, float]]:
     """Sample video frames to measure motion intensity and visual sharpness."""
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
@@ -216,12 +220,17 @@ def _measure_visual_motion_sampled(video_path: str, sample_interval: float = 0.5
             "sharpness": sharpness_score,
         })
 
+        if progress_callback and (len(results) % 15 == 0 or frame_idx >= total_frames - step_frames):
+            sub_pct = int(round(frame_idx / max(1, total_frames) * 100))
+            progress_callback(f"Stage 3: Analyzing visual motion checkpoint {frame_idx}/{total_frames} ({sub_pct}%)...")
+
         prev_gray = gray
         prev_time = cur_time
         frame_idx += step_frames
 
     cap.release()
     return results
+
 
 
 def _get_qwen_ai_tags_for_video(
@@ -659,8 +668,13 @@ def generate_social_clips(
         all_cuts = sorted(set(scene_changes + keyframes))
         _notify(3, f"Detected {len(scene_changes)} scene cuts, {len(keyframes)} keyframes")
 
-        visual_samples = _measure_visual_motion_sampled(video_path, sample_interval=0.4)
+        visual_samples = _measure_visual_motion_sampled(
+            video_path,
+            sample_interval=0.4,
+            progress_callback=progress_callback,
+        )
         _notify(3, f"Sampled {len(visual_samples)} visual motion checkpoints")
+
 
         # Step 4: AI Semantic Vision
         ai_candidates = []
