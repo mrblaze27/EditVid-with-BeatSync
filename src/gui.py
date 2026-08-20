@@ -80,7 +80,7 @@ import subprocess
 import threading
 import time
 import socket
-from typing import Callable, Iterator, TypeAlias, Tuple, Dict, List
+from typing import Callable, Iterator, TypeAlias, Tuple, Dict, List, Any
 
 # Import FFmpeg processing module
 from ffmpeg_processing import get_video_fps, FFMPEG_PATH
@@ -107,8 +107,8 @@ gpu_data = GPU_INFO
 gpu_info = f"{gpu_data['name']} ({gpu_data['cuda_version']})" if gpu_data['available'] else "CPU Mode"
 
 from video_processor import create_music_video
-
 from auto_mode import analyze_beats_auto
+from social_clipper import generate_social_clips
 
 # Import UI content
 from ui_content import *
@@ -120,22 +120,29 @@ VideoFilesInput : TypeAlias = List[str]
 StatusResult : TypeAlias = Tuple[str, str, Dict]
 
 STATUS_BOX_CSS = """
-#status-output-box {
-    min-height: 238px !important;
+#status-output-box, #shorts-status-box {
+    min-height: 120px !important;
 }
 
-#status-output-box textarea {
-    height: 186px !important;
-    min-height: 186px !important;
-    max-height: 186px !important;
+#status-output-box textarea, #shorts-status-box textarea {
+    height: 110px !important;
+    min-height: 110px !important;
+    max-height: 160px !important;
     overflow-y: auto !important;
     resize: none !important;
+    font-family: monospace;
+    font-size: 0.92rem;
+}
+
+.shorts-video-player {
+    max-height: 480px !important;
 }
 """
 
 
 def _stage_status(stage_number: int) -> str:
     return f"Stage {stage_number} is processing. Please wait."
+
 
 
 class QuietConsole:
@@ -470,7 +477,7 @@ def _process_video_impl(audio_file: str, video_files: VideoFilesInput,
         # Generate status message based on mode
         gpu_info = f"⚡ GPU: {GPU_INFO}" if use_gpu else "💻 CPU"
         fps_info = f"{output_fps:.2f} FPS (custom)" if custom_fps else f"{output_fps:.2f} FPS (auto-detected)"
-        audio_info = "PCM 24-bit (48kHz)"
+        audio_info = "PCM 24-bit (48kHz)" if is_prores else "AAC 320kbps (48kHz)"
         
         if is_prores:
             codec_info = "ProRes 422 Proxy (.mov) - Lossless"
@@ -563,6 +570,153 @@ def process_video(audio_file: str, video_files: VideoFilesInput,
     yield result_queue.get()
 
 
+# ============================================================================
+# TIKTOK / SHORTS PROCESSING HANDLERS
+# ============================================================================
+
+def _format_shorts_summary_markdown(result: Dict[str, Any]) -> str:
+    if not result.get("success"):
+        return f"❌ **Errore generazione clip**: {result.get('error', 'Sconosciuto')}"
+
+    clips = result.get("clips", [])
+    if not clips:
+        return "⚠️ Nessuna clip estratta."
+
+    total_s = result.get("total_processing_seconds", 0.0)
+    lines = [
+        f"### ✅ {len(clips)} Clip TikTok / Shorts (9:16) Generate con Successo!",
+        f"⏱️ **Tempo di elaborazione**: {total_s:.1f}s | 📐 **Formato**: 1080x1920 (9:16) | 🧠 **Strategia**: `{result.get('ai_strategy')}`",
+        "",
+        "| Clip | Titolo / Highlight | Range Temporale | Durata | Punteggio Virale | Nome File |",
+        "| :--- | :--- | :--- | :--- | :--- | :--- |",
+    ]
+
+    for c in clips:
+        st_badge = f"{int(c.start_time//60):02d}:{c.start_time%60:04.1f}"
+        et_badge = f"{int(c.end_time//60):02d}:{c.end_time%60:04.1f}"
+        lines.append(
+            f"| **#{c.clip_index}** | {c.label} | `{st_badge} - {et_badge}` | `{c.duration:.1f}s` | **{c.viral_score}/100** 🔥 | `{c.filename}` |"
+        )
+
+    lines.append("")
+    lines.append(f"📁 *Cartella di output:* `{result.get('output_dir')}`")
+    return "\n".join(lines)
+
+
+def _process_social_clips_impl(
+    video_file: str,
+    clip_count: int,
+    duration_mode: str,
+    framing_mode: str,
+    ai_strategy: str,
+    enable_qwen: bool,
+    processing_mode: str,
+    progress_callback: Callable[[str], None] | None = None,
+    console_logger: StageConsoleLogger | None = None,
+) -> Tuple[str, List[str | None], str]:
+    if not video_file:
+        return "❌ Errore: Nessun video selezionato per l'estrazione delle clip.", [None] * 5, ""
+
+    local_path = _as_existing_source_path(video_file)
+    if not local_path or not os.path.exists(local_path):
+        return f"❌ Errore: File video non accessibile: {video_file}", [None] * 5, ""
+
+    use_gpu = GPU_AVAILABLE
+    set_gpu_mode(use_gpu)
+    use_nvenc = (processing_mode in ['h264_nvenc', 'hevc_nvenc']) and NVENC_AVAILABLE
+    gpu_encoder = processing_mode if use_nvenc else 'cpu'
+
+    if progress_callback:
+        progress_callback("Inizio analisi audio-visiva & AI del video...")
+
+    res = generate_social_clips(
+        video_path=local_path,
+        clip_count=int(clip_count),
+        duration_mode=duration_mode,
+        framing_mode=framing_mode,
+        ai_strategy=ai_strategy,
+        enable_qwen_ai=bool(enable_qwen),
+        use_gpu=use_gpu,
+        gpu_encoder=gpu_encoder,
+        progress_callback=progress_callback,
+        console_callback=lambda stage, msg: console_logger.stage_line(stage, msg) if console_logger else None,
+    )
+
+    if not res.get("success"):
+        return f"❌ Errore: {res.get('error', 'Generazione fallita')}", [None] * 5, ""
+
+    clips = res.get("clips", [])
+    clip_paths = [None] * 5
+    for idx, c in enumerate(clips[:5]):
+        clip_paths[idx] = c.file_path
+
+    summary_md = _format_shorts_summary_markdown(res)
+    status_text = f"✅ Completato! {len(clips)} clip verticali 9:16 create in {res.get('total_processing_seconds', 0):.1f}s."
+    return status_text, clip_paths, summary_md
+
+
+def process_social_clips(
+    video_file: str,
+    clip_count: int,
+    duration_mode: str,
+    framing_mode: str,
+    ai_strategy: str,
+    enable_qwen: bool,
+    processing_mode: str,
+) -> Iterator[Tuple[str, str | None, str | None, str | None, str | None, str | None, str]]:
+    status_queue: queue.Queue[str | None] = queue.Queue()
+    result_queue: queue.Queue[Tuple[str, List[str | None], str]] = queue.Queue(maxsize=1)
+    console_logger = StageConsoleLogger(sys.__stdout__)
+    quiet_console = QuietConsole()
+
+    def progress_callback(msg: str) -> None:
+        status_queue.put(msg)
+        match = re.search(r"Stage (\d+):", msg)
+        if match:
+            console_logger.start_stage(int(match.group(1)))
+
+    def worker() -> None:
+        try:
+            with contextlib.redirect_stdout(quiet_console), contextlib.redirect_stderr(quiet_console):
+                res = _process_social_clips_impl(
+                    video_file=video_file,
+                    clip_count=clip_count,
+                    duration_mode=duration_mode,
+                    framing_mode=framing_mode,
+                    ai_strategy=ai_strategy,
+                    enable_qwen=enable_qwen,
+                    processing_mode=processing_mode,
+                    progress_callback=progress_callback,
+                    console_logger=console_logger,
+                )
+        except Exception as e:
+            console_logger.line(f"Error: {e}")
+            res = f"❌ Errore: {e}", [None] * 5, ""
+        finally:
+            console_logger.finish()
+        result_queue.put(res)
+        status_queue.put(None)
+
+    thread = threading.Thread(target=worker, daemon=True)
+    console_logger.start_stage(1)
+    thread.start()
+
+    last_status = "Inizializzazione estrazione clip 9:16..."
+    yield last_status, None, None, None, None, None, ""
+
+    while True:
+        msg = status_queue.get()
+        if msg is None:
+            break
+        if msg != last_status:
+            last_status = msg
+            yield msg, None, None, None, None, None, ""
+
+    thread.join()
+    final_status, clip_paths, summary_md = result_queue.get()
+    yield final_status, clip_paths[0], clip_paths[1], clip_paths[2], clip_paths[3], clip_paths[4], summary_md
+
+
 def cleanup_on_startup():
     """
     Clean temporary runtime files on script start while preserving user inputs
@@ -592,15 +746,17 @@ def cleanup_on_startup():
                 except Exception as e:
                     print(f"   ⚠️  Could not clean {item}: {e}")
 
-        # Recreate runtime temp upload folder after cleanup.
+        # Recreate runtime temp upload and processing folder after cleanup.
         os.makedirs(os.path.join(input_base, 'gradio_uploads'), exist_ok=True)
+        os.makedirs(get_processing_dir(), exist_ok=True)
+        os.makedirs(get_shorts_output_dir(), exist_ok=True)
 
     except Exception as e:
         print(f"   ⚠️  Warning during startup cleanup: {e}")
 
 
+
 def create_ui() -> gr.Blocks:
-    # These definitions are needed within the function's scope
     python_status = "✅ Portable (bin/python-3.13.14-embed-amd64/)" if USING_PORTABLE_PYTHON else "⚠️  System Python"
     if USING_CUPY_CTK:
         cuda_status = "✅ CuPy CTK (Python wheel libraries)"
@@ -617,34 +773,137 @@ def create_ui() -> gr.Blocks:
         gr.Markdown(f"# {UI_TITLE}")
         gr.Markdown(UI_MAIN_DESCRIPTION)
         
-        with gr.Row():
-            with gr.Column(scale=1):
-                gr.Markdown('### 📁 Input Files')
-                audio_input = gr.File(label=LABEL_AUDIO_FILE, file_types=['.mp3', '.wav', '.flac'], type='filepath', elem_id='audio-file-input')
-                video_input = gr.File(label=LABEL_VIDEO_FILES, file_count='multiple', file_types=['.mp4', '.mkv'], type='filepath', elem_id='video-files-input')
+        with gr.Tabs() as main_tabs:
+            # ============================================================================
+            # TAB 1: FULL MUSIC VIDEO GENERATOR
+            # ============================================================================
+            with gr.Tab(TAB_FULL_VIDEO, id="full_video_tab"):
+                with gr.Row():
+                    with gr.Column(scale=1):
+                        gr.Markdown('### 📁 Input Files')
+                        audio_input = gr.File(label=LABEL_AUDIO_FILE, file_types=['.mp3', '.wav', '.flac'], type='filepath', elem_id='audio-file-input')
+                        video_input = gr.File(label=LABEL_VIDEO_FILES, file_count='multiple', file_types=['.mp4', '.mkv'], type='filepath', elem_id='video-files-input')
 
-                with gr.Group():
-                    gr.Markdown('### ⚙️ Video Settings')
-                    custom_fps = gr.Number(label=LABEL_CUSTOM_FPS, value=None, precision=2, info=INFO_CUSTOM_FPS)
+                        with gr.Group():
+                            gr.Markdown('### ⚙️ Video Settings')
+                            custom_fps = gr.Number(label=LABEL_CUSTOM_FPS, value=None, precision=2, info=INFO_CUSTOM_FPS)
 
-                with gr.Group():
-                    gr.Markdown(f'### 🎬 Processing Mode')
-                    if NVENC_AVAILABLE:
-                        processing_mode = gr.Radio(choices=[('NVIDIA NVENC H.264', 'h264_nvenc'), ('NVIDIA NVENC HEVC (H.265)', 'hevc_nvenc'), ('CPU (H.264)', 'cpu'), ('ProRes 422 Proxy (Precise Mode)', 'prores_proxy')], value='h264_nvenc', label=LABEL_PROCESSING_MODE, info=get_processing_mode_info_nvenc())
-                    else:
-                        processing_mode = gr.Radio(choices=[('CPU (H.264)', 'cpu'), ('ProRes 422 Proxy (Precise Mode)', 'prores_proxy')], value='cpu', label=LABEL_PROCESSING_MODE, info=get_processing_mode_info_cpu())
+                        with gr.Group():
+                            gr.Markdown(f'### 🎬 Processing Mode')
+                            if NVENC_AVAILABLE:
+                                processing_mode = gr.Radio(choices=[('NVIDIA NVENC H.264', 'h264_nvenc'), ('NVIDIA NVENC HEVC (H.265)', 'hevc_nvenc'), ('CPU (H.264)', 'cpu'), ('ProRes 422 Proxy (Precise Mode)', 'prores_proxy')], value='h264_nvenc', label=LABEL_PROCESSING_MODE, info=get_processing_mode_info_nvenc())
+                            else:
+                                processing_mode = gr.Radio(choices=[('CPU (H.264)', 'cpu'), ('ProRes 422 Proxy (Precise Mode)', 'prores_proxy')], value='cpu', label=LABEL_PROCESSING_MODE, info=get_processing_mode_info_cpu())
+                        
+                        with gr.Group():
+                            gr.Markdown('### 📁 Output Settings')
+                            output_filename = gr.Textbox(value='music_video.mp4', label=LABEL_OUTPUT_FILENAME, info=INFO_OUTPUT_FILENAME)
+
+                        process_btn = gr.Button('🎬 Create Music Video', variant='primary', size='lg')
+
+                    with gr.Column(scale=1):
+                        gr.Markdown('### 📺 Output')
+                        status_output = gr.Textbox(label='Status', interactive=False, value=get_ready_status(python_status, cuda_status, MAX_THREADS, CPU_COUNT, ffmpeg_status, GPU_AVAILABLE, gpu_info, NVENC_AVAILABLE), lines=4, max_lines=4, elem_id='status-output-box')
+                        video_output = gr.Video(label='Generated Music Video', interactive=False, elem_id='generated-video-output')
+                        
+                        create_shorts_from_mv_btn = gr.Button(
+                            BTN_GENERATE_FROM_GENERATED,
+                            variant='secondary',
+                            size='lg',
+                            elem_id='create-shorts-from-mv-btn'
+                        )
+
+            # ============================================================================
+            # TAB 2: TIKTOK & SHORTS AUTO-CLIPPER (9:16)
+            # ============================================================================
+            with gr.Tab(TAB_TIKTOK_SHORTS, id="tiktok_shorts_tab"):
+                gr.Markdown(f"## {TIKTOK_SECTION_TITLE}")
+                gr.Markdown(TIKTOK_SECTION_DESC)
                 
-                with gr.Group():
-                    gr.Markdown('### 📁 Output Settings')
-                    output_filename = gr.Textbox(value='music_video.mp4', label=LABEL_OUTPUT_FILENAME, info=INFO_OUTPUT_FILENAME)
+                with gr.Row():
+                    with gr.Column(scale=1):
+                        gr.Markdown('### 📁 Video Sorgente di Input')
+                        shorts_video_input = gr.File(
+                            label=LABEL_SHORTS_INPUT_VIDEO,
+                            file_types=['.mp4', '.mkv', '.mov'],
+                            type='filepath',
+                            elem_id='shorts-video-input'
+                        )
 
-                process_btn = gr.Button('🎬 Create Music Video', variant='primary', size='lg')
+                        with gr.Group():
+                            gr.Markdown('### ⚙️ Configurazione Clip & Durata')
+                            shorts_clip_count = gr.Slider(
+                                minimum=1, maximum=5, value=3, step=1,
+                                label=LABEL_CLIP_COUNT, info=INFO_CLIP_COUNT
+                            )
+                            shorts_duration_mode = gr.Dropdown(
+                                choices=CHOICES_DURATION_MODE,
+                                value="auto_15_30",
+                                label=LABEL_DURATION_MODE,
+                            )
 
-            with gr.Column(scale=1):
-                gr.Markdown('### 📺 Output')
-                status_output = gr.Textbox(label='Status', interactive=False, value=get_ready_status(python_status, cuda_status, MAX_THREADS, CPU_COUNT, ffmpeg_status, GPU_AVAILABLE, gpu_info, NVENC_AVAILABLE), lines=4, max_lines=4, elem_id='status-output-box')
-                video_output = gr.Video(label='Generated Music Video', interactive=False, elem_id='generated-video-output')
-                
+                        with gr.Group():
+                            gr.Markdown('### 📐 Inquadratura 9:16 & Strategia AI')
+                            shorts_framing_mode = gr.Radio(
+                                choices=CHOICES_FRAMING_MODE,
+                                value="smart_crop",
+                                label=LABEL_FRAMING_MODE,
+                            )
+                            shorts_ai_strategy = gr.Radio(
+                                choices=CHOICES_AI_STRATEGY,
+                                value="smart_viral",
+                                label=LABEL_AI_STRATEGY,
+                            )
+                            shorts_enable_qwen = gr.Checkbox(
+                                value=True,
+                                label=LABEL_ENABLE_QWEN,
+                                info=INFO_ENABLE_QWEN,
+                            )
+
+                        with gr.Group():
+                            gr.Markdown('### 🎬 Modalità di Rendering')
+                            if NVENC_AVAILABLE:
+                                shorts_proc_mode = gr.Radio(
+                                    choices=[('NVIDIA NVENC H.264', 'h264_nvenc'), ('NVIDIA NVENC HEVC', 'hevc_nvenc'), ('CPU (H.264)', 'cpu')],
+                                    value='h264_nvenc',
+                                    label=LABEL_PROCESSING_MODE
+                                )
+                            else:
+                                shorts_proc_mode = gr.Radio(
+                                    choices=[('CPU (H.264)', 'cpu')],
+                                    value='cpu',
+                                    label=LABEL_PROCESSING_MODE
+                                )
+
+                        shorts_process_btn = gr.Button(BTN_GENERATE_SHORTS, variant='primary', size='lg')
+
+                    with gr.Column(scale=1):
+                        gr.Markdown('### 📺 Risultati & Clip Verticali 9:16')
+                        shorts_status_output = gr.Textbox(
+                            label=LABEL_SHORTS_OUTPUT_STATUS,
+                            interactive=False,
+                            value="Pronto. Carica un video o usa il pulsante dal generatore principale e premi 'Genera Clip 9:16'.",
+                            lines=3,
+                            max_lines=3,
+                            elem_id='shorts-status-box'
+                        )
+                        shorts_summary_md = gr.Markdown("")
+                        
+                        with gr.Tabs():
+                            with gr.TabItem("Clip #1"):
+                                clip_v1 = gr.Video(label="Clip #1 (9:16)", interactive=False, elem_classes=['shorts-video-player'])
+                            with gr.TabItem("Clip #2"):
+                                clip_v2 = gr.Video(label="Clip #2 (9:16)", interactive=False, elem_classes=['shorts-video-player'])
+                            with gr.TabItem("Clip #3"):
+                                clip_v3 = gr.Video(label="Clip #3 (9:16)", interactive=False, elem_classes=['shorts-video-player'])
+                            with gr.TabItem("Clip #4"):
+                                clip_v4 = gr.Video(label="Clip #4 (9:16)", interactive=False, elem_classes=['shorts-video-player'])
+                            with gr.TabItem("Clip #5"):
+                                clip_v5 = gr.Video(label="Clip #5 (9:16)", interactive=False, elem_classes=['shorts-video-player'])
+
+        # ============================================================================
+        # EVENT BINDINGS
+        # ============================================================================
         process_btn.click(
             fn=process_video,
             inputs=[
@@ -656,7 +915,33 @@ def create_ui() -> gr.Blocks:
             show_progress='hidden'
         )
 
+        create_shorts_from_mv_btn.click(
+            fn=lambda vid: (vid, gr.Tabs(selected="tiktok_shorts_tab")),
+            inputs=[video_output],
+            outputs=[shorts_video_input, main_tabs],
+        )
+
+        shorts_process_btn.click(
+            fn=process_social_clips,
+            inputs=[
+                shorts_video_input,
+                shorts_clip_count,
+                shorts_duration_mode,
+                shorts_framing_mode,
+                shorts_ai_strategy,
+                shorts_enable_qwen,
+                shorts_proc_mode,
+            ],
+            outputs=[
+                shorts_status_output,
+                clip_v1, clip_v2, clip_v3, clip_v4, clip_v5,
+                shorts_summary_md,
+            ],
+            show_progress='hidden'
+        )
+
     return app
+
 
 if __name__ == '__main__':
     try:
@@ -676,3 +961,4 @@ if __name__ == '__main__':
         inbrowser=True,
         show_error=True
     )
+

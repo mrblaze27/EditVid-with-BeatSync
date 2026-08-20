@@ -1,0 +1,29 @@
+# Binaries and Portable Runtimes (installed via install.bat)
+bin/
+
+# Temporary and User Data
+input/
+output/
+scratch/
+
+# Python cache and byte-compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+*.tmp
+*.log
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# IDE / Editor files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+Thumbs.db

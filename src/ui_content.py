@@ -363,3 +363,52 @@ def get_parallel_workers_label(recommended_workers):
 def get_parallel_workers_info():
     """Parallel workers info."""
     return 'Clips processed simultaneously. More workers with GPU.'
+
+
+# ============================================================================
+# TIKTOK / SHORTS AUTO-CLIPPER LABELS & CONTENT
+# ============================================================================
+
+TAB_FULL_VIDEO = "🎬 Full Music Video Generator"
+TAB_TIKTOK_SHORTS = "📱 TikTok & Shorts Auto-Clipper (9:16)"
+
+TIKTOK_SECTION_TITLE = "📱 TikTok & Shorts 9:16 AI Highlights Generator"
+TIKTOK_SECTION_DESC = """Estrai automaticamente le migliori clip verticali in **formato 9:16 (1080x1920)** per TikTok, Instagram Reels e YouTube Shorts.
+Il sistema analizza l'audio (beat, drop, energia) e il video tramite **Visione AI (Qwen3-VL)** e motion tracking per trovare i momenti più coinvolgenti."""
+
+LABEL_SHORTS_INPUT_VIDEO = "🎬 Video Sorgente di Input (.mp4 / .mkv / .mov)"
+LABEL_CLIP_COUNT = "🔢 Numero di Clip da Generare"
+INFO_CLIP_COUNT = "Numero di brevi video verticali 9:16 da estrarre (da 1 a 5)."
+
+LABEL_DURATION_MODE = "⏱️ Durata Target delle Clip"
+CHOICES_DURATION_MODE = [
+    ("⚡ Auto (15-30s) - Dinamica su Beat/Drop", "auto_15_30"),
+    ("🔥 15 Secondi - Hook Rapido TikTok/Reels", "15s"),
+    ("🎵 30 Secondi - Social Standard (Drop/Ritornello)", "30s"),
+    ("🎬 60 Secondi - Story/Highlight Esteso", "60s"),
+]
+
+LABEL_FRAMING_MODE = "📐 Inquadratura Verticale 9:16 (1080x1920)"
+CHOICES_FRAMING_MODE = [
+    ("🎯 Smart Center Crop (9:16) - Focus Centro/Azione", "smart_crop"),
+    ("✨ Sfondo Sfocato (Blurred Fill 9:16) - Stile TikTok", "blur_pad"),
+    ("⬛ Fit con Barre Nere (Letterbox 9:16)", "fit_letterbox"),
+]
+
+LABEL_AI_STRATEGY = "🧠 Strategia di Selezione AI & Scoring"
+CHOICES_AI_STRATEGY = [
+    ("🚀 Smart Viral (Bilanciato AI + Drop + Movimento)", "smart_viral"),
+    ("💥 Picco Energia & Beat Drop", "peak_energy_drop"),
+    ("⚔️ Azione, Combattimento & Movimento", "visual_action"),
+    ("🎨 Cinematic & Estetica Visiva", "cinematic_beauty"),
+]
+
+LABEL_ENABLE_QWEN = "🧠 Attiva Visione AI Qwen3-VL"
+INFO_ENABLE_QWEN = "Usa il modello locale Qwen3-VL per identificare hype, action, combat ed emozioni."
+
+BTN_GENERATE_SHORTS = "🚀 Genera Clip 9:16 per TikTok / Shorts"
+BTN_GENERATE_FROM_GENERATED = "📱 Genera Clip TikTok / Shorts (9:16) da questo Video"
+
+LABEL_SHORTS_OUTPUT_STATUS = "📊 Avanzamento & Statistiche"
+LABEL_SHORTS_GALLERY = "📱 Clip Verticali 9:16 Generate"
+

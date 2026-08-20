@@ -136,11 +136,13 @@ def get_nvenc_quality_args(gpu_encoder: str, include_pix_fmt: bool = True) -> Li
 
 
 def get_cpu_h264_quality_args(include_pix_fmt: bool = True) -> List[str]:
-    """Return lossless CPU H.264 settings."""
+    """Return high-quality, widely compatible CPU H.264 settings."""
     args = [
         '-c:v', 'libx264',
-        '-preset', 'ultrafast',
-        '-crf', '0',
+        '-preset', 'veryfast',
+        '-crf', '17',
+        '-profile:v', 'high',
+        '-level', '4.2',
     ]
     if include_pix_fmt:
         args.extend(['-pix_fmt', 'yuv420p'])
@@ -594,7 +596,7 @@ def concatenate_videos_ffmpeg(video_files: List[str], output_file: str,
                     cmd.extend(['-map', '0:v:0'])
                 cmd.extend(['-c:v', 'copy'])
                 if audio_file:
-                    cmd.extend(['-c:a', 'pcm_s24le', '-ar', '48000', '-shortest'])
+                    cmd.extend(['-c:a', 'aac', '-b:a', '320k', '-ar', '48000', '-shortest'])
                 cmd.extend(['-fflags', '+genpts', '-movflags', '+faststart', '-y', output_file])
 
                 result = _run_media_command(cmd, timeout=300)
@@ -629,7 +631,8 @@ def concatenate_videos_ffmpeg(video_files: List[str], output_file: str,
             
             if audio_file:
                 cmd.extend([
-                    '-c:a', 'pcm_s24le',
+                    '-c:a', 'aac',
+                    '-b:a', '320k',
                     '-ar', '48000',
                     '-shortest',
                 ])
@@ -804,3 +807,157 @@ def detect_video_keyframes(video_path: str, min_interval: float = 0.20) -> List[
     except Exception as e:
         print(f"   ⚠️  Warning: Could not read keyframes: {e}")
         return []
+
+
+def has_audio_stream(video_file: str) -> bool:
+    """Check if a video file has at least one audio stream."""
+    try:
+        cmd = [
+            FFPROBE_PATH,
+            '-v', 'error',
+            '-select_streams', 'a:0',
+            '-show_entries', 'stream=codec_type',
+            '-of', 'default=noprint_wrappers=1:nokey=1',
+            video_file,
+        ]
+        result = _run_media_command(cmd, timeout=10)
+        return result.returncode == 0 and bool(result.stdout.strip())
+    except Exception:
+        return False
+
+
+def extract_audio_from_video(video_file: str, output_audio_file: str) -> bool:
+    """Extract audio from a video file into a WAV format for fast analysis."""
+    try:
+        cmd = [
+            FFMPEG_PATH,
+            '-nostdin',
+            '-hide_banner',
+            '-i', video_file,
+            '-vn',
+            '-acodec', 'pcm_s16le',
+            '-ar', '22050',
+            '-ac', '1',
+            '-y',
+            output_audio_file,
+        ]
+        result = _run_media_command(cmd, timeout=120)
+        return result.returncode == 0 and os.path.exists(output_audio_file) and os.path.getsize(output_audio_file) > 0
+    except Exception as e:
+        print(f"   ⚠️  Could not extract audio: {e}")
+        return False
+
+
+def extract_vertical_clip_9_16(
+    video_file: str,
+    start_time: float,
+    duration: float,
+    output_file: str,
+    framing_mode: str = "smart_crop",
+    target_width: int = 1080,
+    target_height: int = 1920,
+    fps: float = 30.0,
+    use_nvenc: bool = False,
+    gpu_encoder: str = "h264_nvenc",
+    audio_fade: bool = True,
+) -> Tuple[bool, str]:
+    """
+    Extract a high-quality vertical 9:16 clip optimized for TikTok/Reels/Shorts.
+
+    Supported framing modes:
+    - 'smart_crop' / 'center_crop': 1080x1920 center-crop filling the vertical frame.
+    - 'blur_pad' / 'blurred_background': 16:9 centered foreground + blurred & zoomed 9:16 background.
+    - 'fit_letterbox': 16:9 centered with black padding to 1080x1920.
+    """
+    try:
+        w = max(2, int(target_width) // 2 * 2)
+        h = max(2, int(target_height) // 2 * 2)
+        exact_duration = max(0.5, float(duration))
+        frame_count = max(1, seconds_to_frame_count(exact_duration, fps))
+
+        # Build video filter graph according to framing mode
+        is_complex = False
+        if framing_mode in ("blur_pad", "blurred_background"):
+            is_complex = True
+            vf_complex = (
+                f"[0:v]setpts=PTS-STARTPTS,fps={fps}[base];"
+                f"[base]split=2[bg][fg];"
+                f"[bg]scale={w}:{h}:force_original_aspect_ratio=increase,"
+                f"crop={w}:{h}:(in_w-{w})/2:(in_h-{h})/2,boxblur=20:2[bg_blur];"
+                f"[fg]scale={w}:{h}:force_original_aspect_ratio=decrease[fg_fit];"
+                f"[bg_blur][fg_fit]overlay=(W-w)/2:(H-h)/2,setsar=1[vout]"
+            )
+        elif framing_mode == "fit_letterbox":
+            vf_simple = (
+                f"setpts=PTS-STARTPTS,fps={fps},"
+                f"scale={w}:{h}:force_original_aspect_ratio=decrease,"
+                f"pad={w}:{h}:({w}-iw)/2:({h}-ih)/2:black,setsar=1"
+            )
+        else:
+            # Default 'smart_crop' / center crop
+            vf_simple = (
+                f"setpts=PTS-STARTPTS,fps={fps},"
+                f"scale={w}:{h}:force_original_aspect_ratio=increase,"
+                f"crop={w}:{h}:(in_w-{w})/2:(in_h-{h})/2,setsar=1"
+            )
+
+        # Build audio filter graph
+        audio_available = has_audio_stream(video_file)
+        af_filters = []
+        if audio_available and audio_fade and exact_duration >= 2.0:
+            fade_out_start = max(0.1, exact_duration - 0.25)
+            af_filters.append(f"afade=t=in:ss=0:d=0.15,afade=t=out:st={fade_out_start:.2f}:d=0.25")
+
+        base_cmd = [
+            FFMPEG_PATH,
+            '-nostdin',
+            '-hide_banner',
+            '-ss', f"{float(start_time):.3f}",
+            '-i', video_file,
+            '-t', f"{exact_duration:.3f}",
+        ]
+
+        if is_complex:
+            base_cmd.extend(['-filter_complex', vf_complex, '-map', '[vout]'])
+        else:
+            base_cmd.extend(['-vf', vf_simple])
+
+        if audio_available:
+            if is_complex:
+                base_cmd.extend(['-map', '0:a:0?'])
+            if af_filters:
+                base_cmd.extend(['-af', ",".join(af_filters)])
+            base_cmd.extend(['-c:a', 'aac', '-b:a', '320k', '-ar', '48000'])
+        else:
+            base_cmd.extend(['-an'])
+
+        base_cmd.extend(['-vframes', str(frame_count)])
+
+        tail_cmd = [
+            '-fps_mode', 'cfr',
+            '-r', str(fps),
+            '-fflags', '+genpts',
+            '-movflags', '+faststart',
+            '-y',
+            output_file,
+        ]
+
+        # 1. Try NVENC if available
+        if use_nvenc:
+            cmd_nvenc = base_cmd + get_nvenc_quality_args(gpu_encoder, include_pix_fmt=True) + tail_cmd
+            res = _run_media_command(cmd_nvenc, timeout=180)
+            if res.returncode == 0 and os.path.exists(output_file) and os.path.getsize(output_file) > 0:
+                return True, ""
+
+        # 2. CPU fallback
+        cmd_cpu = base_cmd + get_cpu_h264_quality_args(include_pix_fmt=True) + tail_cmd
+        res = _run_media_command(cmd_cpu, timeout=180)
+        if res.returncode == 0 and os.path.exists(output_file) and os.path.getsize(output_file) > 0:
+            return True, ""
+
+        err = _short_ffmpeg_error(res.stderr, 800)
+        return False, f"FFmpeg error (code {res.returncode}): {err}"
+
+    except Exception as e:
+        return False, str(e)
+

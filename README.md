@@ -41,6 +41,7 @@ BeatSync Engine analyzes music rhythm, energy, sections, and source-video moment
 *   **⚡ GPU Acceleration:** Uses CuPy CTK wheel libraries for CUDA analysis when available, llama.cpp Vulkan for Qwen3-VL, and FFmpeg NVENC for fast H.264/H.265 encoding.
 *   **🎞️ Frame-Locked Timeline:** Quantizes cut boundaries to absolute output frames to avoid timing drift.
 *   **🎬 Multiple Export Modes:** NVENC H.264, NVENC HEVC, CPU H.264, and ProRes 422 Proxy precise mode.
+*   **📱 TikTok & Shorts Auto-Clipper:** Automatically extracts vertical 9:16 (1080x1920) clips with AI viral scoring, beat/drop alignment, smart crop, and blurred background fill.
 *   **📦 Portable Runtime:** Designed around bundled Python, FFmpeg, llama.cpp Vulkan, CuPy CTK, and local GGUF model files.
 *   **🌐 Local Web UI:** Launches a Gradio interface at `http://127.0.0.1:7860` by default.
 *   **🧹 Local Caches:** Reuses visual analysis data so repeated runs can be faster.
