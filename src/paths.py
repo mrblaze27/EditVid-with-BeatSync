@@ -13,6 +13,7 @@ PROCESSING_DIR = os.path.join(INPUT_DIR, 'processing')
 GRADIO_TEMP_DIR = os.path.join(INPUT_DIR, 'gradio_uploads')
 OUTPUT_DIR = os.path.join(ROOT_DIR, 'output')
 SHORTS_OUTPUT_DIR = os.path.join(OUTPUT_DIR, 'tiktok_shorts')
+SUBTITLES_OUTPUT_DIR = os.path.join(OUTPUT_DIR, 'subtitles')
 
 
 def ensure_project_dirs() -> None:
@@ -25,6 +26,7 @@ def ensure_project_dirs() -> None:
         GRADIO_TEMP_DIR,
         OUTPUT_DIR,
         SHORTS_OUTPUT_DIR,
+        SUBTITLES_OUTPUT_DIR,
     ]:
         os.makedirs(directory, exist_ok=True)
 
@@ -71,6 +73,10 @@ def get_shorts_output_dir() -> str:
     return SHORTS_OUTPUT_DIR
 
 
+def get_subtitles_output_dir() -> str:
+    """Get the subtitles output directory path."""
+    os.makedirs(SUBTITLES_OUTPUT_DIR, exist_ok=True)
+    return SUBTITLES_OUTPUT_DIR
+
 
 ensure_project_dirs()
-

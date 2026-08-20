@@ -412,3 +412,48 @@ BTN_GENERATE_FROM_GENERATED = "📱 Genera Clip TikTok / Shorts (9:16) da questo
 LABEL_SHORTS_OUTPUT_STATUS = "📊 Avanzamento & Statistiche"
 LABEL_SHORTS_GALLERY = "📱 Clip Verticali 9:16 Generate"
 
+# ============================================================================
+# KARAOKE & SYNCHRONIZED LYRICS LABELS
+# ============================================================================
+
+GROUP_KARAOKE_TITLE = "🎤 Testo Canzone & Karaoke Sincronizzato (Stile TikTok)"
+LABEL_ENABLE_KARAOKE = "🎤 Inserisci Testo Canzone a Schermo (Stile Karaoke / TikTok)"
+INFO_ENABLE_KARAOKE = "Aggiunge i sottotitoli animati della canzone sincronizzati a tempo di musica e voce."
+
+LABEL_LYRICS_MODE = "🛠️ Modalità Testo & Trascrizione"
+CHOICES_LYRICS_MODE = [
+    ("🤖 Trascrizione Automatica AI (Whisper Vocals)", "auto_whisper"),
+    ("✍️ Testo Manuale Fornito (Allineamento AI a Tempo)", "user_lyrics"),
+    ("📁 Carica File Sottotitoli (.LRC / .SRT / .ASS)", "file"),
+]
+
+LABEL_LYRICS_TEXT = "📝 Testo della Canzone (Incolla il testo completo per sincronizzarlo all'audio)"
+INFO_LYRICS_TEXT = "Puoi incollare tutto il testo della canzone: l'AI lo allineerà automaticamente ai beat e alla traccia vocale!"
+
+LABEL_LYRICS_STYLE = "✨ Stile Animazione Testo"
+CHOICES_LYRICS_STYLE = [
+    ("🔥 TikTok Word-Bounce (Parola per parola illuminata & ingrandita)", "tiktok_bounce"),
+    ("🎤 Classic Karaoke Sweep (Riempimento progressivo stile Karaoke)", "karaoke_sweep"),
+    ("⚡ Clean Pop-In (Frasi pulite a ritmo di musica)", "clean_pop"),
+]
+
+LABEL_LYRICS_PALETTE = "🎨 Palette Colori Testo"
+CHOICES_LYRICS_PALETTE = [
+    ("🟡 TikTok Yellow (Bianco + Giallo Attivo)", "tiktok_yellow"),
+    ("🔵 Neon Cyan (Bianco + Azzurro Elettrico)", "neon_cyan"),
+    ("🌸 Hot Pink (Bianco + Fucsia / Magenta)", "hot_pink"),
+    ("🟢 Cyber Green (Bianco + Verde Lime)", "cyber_green"),
+    ("🔥 Flame Orange (Bianco + Arancione Fuoco)", "flame_orange"),
+    ("⚪ Pure White (Monocromatico Elegante)", "pure_white"),
+]
+
+LABEL_LYRICS_POSITION = "📍 Posizione a Schermo"
+CHOICES_LYRICS_POSITION = [
+    ("⬇️ In Basso (Standard Social)", "bottom"),
+    ("⏹️ Al Centro (Focal Point)", "center"),
+    ("⬆️ In Alto", "top"),
+]
+
+LABEL_LYRICS_FILE = "📁 File Sottotitoli Sincronizzati (.lrc / .srt / .ass)"
+
+

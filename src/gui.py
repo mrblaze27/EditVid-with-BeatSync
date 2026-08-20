@@ -101,7 +101,11 @@ from paths import (
     get_audio_input_dir,
     get_video_input_dir,
     get_output_dir,
+    get_processing_dir,
+    get_shorts_output_dir,
+    get_subtitles_output_dir,
 )
+
 
 gpu_data = GPU_INFO
 gpu_info = f"{gpu_data['name']} ({gpu_data['cuda_version']})" if gpu_data['available'] else "CPU Mode"
@@ -359,7 +363,15 @@ def _as_existing_source_paths(file_paths: VideoFilesInput) -> list[str]:
 
 def _process_video_impl(audio_file: str, video_files: VideoFilesInput,
                        output_filename: str, processing_mode: str,
-                       custom_fps: float, session_state: dict,
+                       custom_fps: float,
+                       enable_subtitles: bool = False,
+                       lyrics_mode: str = "auto_whisper",
+                       lyrics_text: str = None,
+                       lyrics_file: str = None,
+                       lyrics_style: str = "tiktok_bounce",
+                       lyrics_palette: str = "tiktok_yellow",
+                       lyrics_position: str = "bottom",
+                       session_state: dict = None,
                        progress_callback: Callable[[str], None] | None = None,
                        console_logger: StageConsoleLogger | None = None) -> StatusResult:
     total_started = time.perf_counter()
@@ -454,7 +466,15 @@ def _process_video_impl(audio_file: str, video_files: VideoFilesInput,
             local_audio_path, local_video_paths, selected_beats,
             output_file=temp_output, max_workers=parallel_workers,
             beat_info=beat_info, lossless_mode=is_prores,
-            use_gpu=use_gpu, gpu_encoder=gpu_encoder, fps=output_fps
+            use_gpu=use_gpu, gpu_encoder=gpu_encoder, fps=output_fps,
+            enable_subtitles=bool(enable_subtitles),
+            lyrics_text=lyrics_text,
+            lyrics_mode=lyrics_mode,
+            lyrics_file=lyrics_file,
+            lyrics_style=lyrics_style,
+            lyrics_palette=lyrics_palette,
+            lyrics_position=lyrics_position,
+            progress_callback=progress_callback,
         )
 
         # Move to output folder
@@ -516,8 +536,16 @@ def _process_video_impl(audio_file: str, video_files: VideoFilesInput,
 
 
 def process_video(audio_file: str, video_files: VideoFilesInput,
-                 output_filename: str, processing_mode: str,
-                 custom_fps: float, session_state: dict) -> Iterator[StatusResult]:
+                  output_filename: str, processing_mode: str,
+                  custom_fps: float,
+                  enable_subtitles: bool,
+                  lyrics_mode: str,
+                  lyrics_text: str,
+                  lyrics_file: str,
+                  lyrics_style: str,
+                  lyrics_palette: str,
+                  lyrics_position: str,
+                  session_state: dict) -> Iterator[StatusResult]:
     status_queue: queue.Queue[str | None] = queue.Queue()
     result_queue: queue.Queue[StatusResult] = queue.Queue(maxsize=1)
     initial_status = _stage_status(1)
@@ -539,6 +567,13 @@ def process_video(audio_file: str, video_files: VideoFilesInput,
                     output_filename=output_filename,
                     processing_mode=processing_mode,
                     custom_fps=custom_fps,
+                    enable_subtitles=enable_subtitles,
+                    lyrics_mode=lyrics_mode,
+                    lyrics_text=lyrics_text,
+                    lyrics_file=lyrics_file,
+                    lyrics_style=lyrics_style,
+                    lyrics_palette=lyrics_palette,
+                    lyrics_position=lyrics_position,
                     session_state=session_state,
                     progress_callback=progress_callback,
                     console_logger=console_logger,
@@ -611,11 +646,18 @@ def _process_social_clips_impl(
     ai_strategy: str,
     enable_qwen: bool,
     processing_mode: str,
+    enable_subtitles: bool = False,
+    lyrics_mode: str = "auto_whisper",
+    lyrics_text: str = None,
+    lyrics_file: str = None,
+    lyrics_style: str = "tiktok_bounce",
+    lyrics_palette: str = "tiktok_yellow",
+    lyrics_position: str = "bottom",
     progress_callback: Callable[[str], None] | None = None,
     console_logger: StageConsoleLogger | None = None,
 ) -> Tuple[str, List[str | None], str]:
     if not video_file:
-        return "❌ Errore: Nessun video selezionato per l'estrazione delle clip.", [None] * 5, ""
+        return "❌ Errore: Nessun file video selezionato.", [None] * 5, ""
 
     local_path = _as_existing_source_path(video_file)
     if not local_path or not os.path.exists(local_path):
@@ -638,6 +680,13 @@ def _process_social_clips_impl(
         enable_qwen_ai=bool(enable_qwen),
         use_gpu=use_gpu,
         gpu_encoder=gpu_encoder,
+        enable_subtitles=bool(enable_subtitles),
+        lyrics_text=lyrics_text,
+        lyrics_mode=lyrics_mode,
+        lyrics_file=lyrics_file,
+        lyrics_style=lyrics_style,
+        lyrics_palette=lyrics_palette,
+        lyrics_position=lyrics_position,
         progress_callback=progress_callback,
         console_callback=lambda stage, msg: console_logger.stage_line(stage, msg) if console_logger else None,
     )
@@ -663,6 +712,13 @@ def process_social_clips(
     ai_strategy: str,
     enable_qwen: bool,
     processing_mode: str,
+    enable_subtitles: bool,
+    lyrics_mode: str,
+    lyrics_text: str,
+    lyrics_file: str,
+    lyrics_style: str,
+    lyrics_palette: str,
+    lyrics_position: str,
 ) -> Iterator[Tuple[str, str | None, str | None, str | None, str | None, str | None, str]]:
     status_queue: queue.Queue[str | None] = queue.Queue()
     result_queue: queue.Queue[Tuple[str, List[str | None], str]] = queue.Queue(maxsize=1)
@@ -686,6 +742,13 @@ def process_social_clips(
                     ai_strategy=ai_strategy,
                     enable_qwen=enable_qwen,
                     processing_mode=processing_mode,
+                    enable_subtitles=enable_subtitles,
+                    lyrics_mode=lyrics_mode,
+                    lyrics_text=lyrics_text,
+                    lyrics_file=lyrics_file,
+                    lyrics_style=lyrics_style,
+                    lyrics_palette=lyrics_palette,
+                    lyrics_position=lyrics_position,
                     progress_callback=progress_callback,
                     console_logger=console_logger,
                 )
@@ -799,6 +862,17 @@ def create_ui() -> gr.Blocks:
                             gr.Markdown('### 📁 Output Settings')
                             output_filename = gr.Textbox(value='music_video.mp4', label=LABEL_OUTPUT_FILENAME, info=INFO_OUTPUT_FILENAME)
 
+                        with gr.Accordion(GROUP_KARAOKE_TITLE, open=False):
+                            enable_subtitles = gr.Checkbox(label=LABEL_ENABLE_KARAOKE, value=False, info=INFO_ENABLE_KARAOKE)
+                            with gr.Row():
+                                lyrics_mode = gr.Radio(choices=CHOICES_LYRICS_MODE, value="auto_whisper", label=LABEL_LYRICS_MODE)
+                                lyrics_file = gr.File(label=LABEL_LYRICS_FILE, file_types=['.lrc', '.srt', '.ass', '.txt'], type='filepath')
+                            lyrics_text = gr.Textbox(label=LABEL_LYRICS_TEXT, placeholder="Incolla qui il testo completo della canzone per allinearlo ai beat e alla voce...", lines=3, info=INFO_LYRICS_TEXT)
+                            with gr.Row():
+                                lyrics_style = gr.Dropdown(choices=CHOICES_LYRICS_STYLE, value="tiktok_bounce", label=LABEL_LYRICS_STYLE)
+                                lyrics_palette = gr.Dropdown(choices=CHOICES_LYRICS_PALETTE, value="tiktok_yellow", label=LABEL_LYRICS_PALETTE)
+                                lyrics_position = gr.Dropdown(choices=CHOICES_LYRICS_POSITION, value="bottom", label=LABEL_LYRICS_POSITION)
+
                         process_btn = gr.Button('🎬 Create Music Video', variant='primary', size='lg')
 
                     with gr.Column(scale=1):
@@ -860,6 +934,17 @@ def create_ui() -> gr.Blocks:
                                 info=INFO_ENABLE_QWEN,
                             )
 
+                        with gr.Accordion(GROUP_KARAOKE_TITLE, open=False):
+                            shorts_enable_subtitles = gr.Checkbox(label=LABEL_ENABLE_KARAOKE, value=False, info=INFO_ENABLE_KARAOKE)
+                            with gr.Row():
+                                shorts_lyrics_mode = gr.Radio(choices=CHOICES_LYRICS_MODE, value="auto_whisper", label=LABEL_LYRICS_MODE)
+                                shorts_lyrics_file = gr.File(label=LABEL_LYRICS_FILE, file_types=['.lrc', '.srt', '.ass', '.txt'], type='filepath')
+                            shorts_lyrics_text = gr.Textbox(label=LABEL_LYRICS_TEXT, placeholder="Incolla qui il testo completo della canzone...", lines=3, info=INFO_LYRICS_TEXT)
+                            with gr.Row():
+                                shorts_lyrics_style = gr.Dropdown(choices=CHOICES_LYRICS_STYLE, value="tiktok_bounce", label=LABEL_LYRICS_STYLE)
+                                shorts_lyrics_palette = gr.Dropdown(choices=CHOICES_LYRICS_PALETTE, value="tiktok_yellow", label=LABEL_LYRICS_PALETTE)
+                                shorts_lyrics_position = gr.Dropdown(choices=CHOICES_LYRICS_POSITION, value="bottom", label=LABEL_LYRICS_POSITION)
+
                         with gr.Group():
                             gr.Markdown('### 🎬 Modalità di Rendering')
                             if NVENC_AVAILABLE:
@@ -909,6 +994,8 @@ def create_ui() -> gr.Blocks:
             inputs=[
                 audio_input, video_input,
                 output_filename, processing_mode, custom_fps,
+                enable_subtitles, lyrics_mode, lyrics_text, lyrics_file,
+                lyrics_style, lyrics_palette, lyrics_position,
                 session_state
             ],
             outputs=[video_output, status_output, session_state],
@@ -931,6 +1018,13 @@ def create_ui() -> gr.Blocks:
                 shorts_ai_strategy,
                 shorts_enable_qwen,
                 shorts_proc_mode,
+                shorts_enable_subtitles,
+                shorts_lyrics_mode,
+                shorts_lyrics_text,
+                shorts_lyrics_file,
+                shorts_lyrics_style,
+                shorts_lyrics_palette,
+                shorts_lyrics_position,
             ],
             outputs=[
                 shorts_status_output,
@@ -939,6 +1033,7 @@ def create_ui() -> gr.Blocks:
             ],
             show_progress='hidden'
         )
+
 
     return app
 

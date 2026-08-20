@@ -42,6 +42,7 @@ BeatSync Engine analyzes music rhythm, energy, sections, and source-video moment
 *   **🎞️ Frame-Locked Timeline:** Quantizes cut boundaries to absolute output frames to avoid timing drift.
 *   **🎬 Multiple Export Modes:** NVENC H.264, NVENC HEVC, CPU H.264, and ProRes 422 Proxy precise mode.
 *   **📱 TikTok & Shorts Auto-Clipper:** Automatically extracts vertical 9:16 (1080x1920) clips with AI viral scoring, beat/drop alignment, smart crop, and blurred background fill.
+*   **🎤 Synchronized Karaoke & Animated Lyrics:** Burns TikTok-style word-by-word bouncing captions or karaoke sweeps synced to song vocals using Whisper AI or user-provided lyrics.
 *   **📦 Portable Runtime:** Designed around bundled Python, FFmpeg, llama.cpp Vulkan, CuPy CTK, and local GGUF model files.
 *   **🌐 Local Web UI:** Launches a Gradio interface at `http://127.0.0.1:7860` by default.
 *   **🧹 Local Caches:** Reuses visual analysis data so repeated runs can be faster.
@@ -69,7 +70,8 @@ BeatSync Engine/
 │       └── mmproj-Qwen3VL-2B-Instruct-F16.gguf
 ├── src/
 │   ├── gui.py                               # Gradio web UI
-│   ├── social_clipper.py                   # TikTok & Shorts 9:16 AI Clipper
+│   ├── lyrics_karaoke.py                    # TikTok & Karaoke lyrics engine
+│   ├── social_clipper.py                    # TikTok & Shorts 9:16 AI Clipper
 │   ├── video_processor.py                   # Rendering pipeline
 │   ├── video_analysis.py                    # Source-video visual library
 │   ├── ffmpeg_processing.py                 # FFmpeg/FFprobe helpers
@@ -89,8 +91,10 @@ BeatSync Engine/
 │   ├── gradio_uploads/                      # Gradio upload/session temp files
 │   └── video_analysis_cache/                # Visual analysis cache
 └── output/                                  # Final exported videos
-    └── tiktok_shorts/                       # Exported 9:16 vertical social clips
+    ├── tiktok_shorts/                       # Exported 9:16 vertical social clips
+    └── subtitles/                           # Exported .ass, .srt, and .lrc timed files
 ```
+
 
 > The app creates `input/` and `output/` subfolders automatically if they are missing.
 
@@ -234,7 +238,38 @@ BeatSync Engine includes a dedicated AI-powered **TikTok, Reels & YouTube Shorts
 
 ---
 
+## 🎤 Synchronized Karaoke & Animated Lyrics (TikTok Style)
+
+BeatSync Engine can automatically transcribe, align, and burn dynamic **TikTok-style bouncing animated captions and karaoke subtitles** directly into both 16:9 full music videos and 9:16 vertical clips.
+
+### 🌟 Key Capabilities
+
+*   **🤖 AI Speech & Lyrics Recognition (Whisper AI):**
+    *   Uses embedded `faster-whisper` for fast, lightweight voice transcription with word-level millisecond timestamps.
+    *   No cloud APIs or extra configuration required.
+*   **✍️ User-Provided Lyrics + Audio-Beat Forced Alignment:**
+    *   Paste the full lyrics text (or load a `.txt` file).
+    *   The engine aligns your exact spelling and phrasing to the detected vocal onset windows and musical beat grid.
+*   **📁 Support for Pre-Synced Subtitle Files:**
+    *   Directly upload `.lrc` (timed lyrics), `.srt`, or `.ass` files.
+*   **✨ 3 High-Impact Visual Animation Styles:**
+    *   **🔥 TikTok Word-Bounce:** The active word being sung/spoken pops, bounces, and illuminates in vibrant neon colors while surrounding words remain crisp white with heavy black outlines.
+    *   **🎤 Classic Karaoke Sweep:** Smooth continuous color fill across syllables as they are sung (`\kf` ASS karaoke tags).
+    *   **⚡ Clean Pop-In:** Fast, legible phrase bursts matched to musical transients.
+*   **🎨 Curated Color Palettes:**
+    *   `TikTok Yellow` (White base + Gold/Yellow active `#FFD700`)
+    *   `Neon Cyan` (White base + Electric Blue active `#00FFFF`)
+    *   `Hot Pink` (White base + Magenta active `#FF2A85`)
+    *   `Cyber Green` (White base + Lime active `#39FF14`)
+    *   `Flame Orange` (White base + Fire Orange active `#FF6600`)
+    *   `Pure White` (Monochrome minimal)
+*   **📍 Flexible Positioning:** Bottom (Standard Social), Center (Focal Point), or Top.
+*   **📦 Subtitle Export:** Automatically exports `.ass`, `.srt`, and `.lrc` files to `output/subtitles/`.
+
+---
+
 ## 🎵 Auto Mode Details
+
 
 
 Auto Mode is the main creative engine.

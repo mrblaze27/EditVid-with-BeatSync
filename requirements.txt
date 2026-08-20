@@ -6,3 +6,5 @@ numpy==2.4.4
 opencv-python-headless==4.13.0.92
 pillow==12.2.0
 cupy-cuda13x[ctk]==14.1.1
+faster-whisper==1.2.1
+

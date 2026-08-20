@@ -14,7 +14,8 @@ setup_environment()
 import argparse
 import random
 import shutil
-from typing import TypeAlias, List, Dict, Tuple
+from typing import TypeAlias, List, Dict, Tuple, Callable, Optional, Any
+
 import numpy as np
 from pathlib import Path
 import gc
@@ -327,7 +328,16 @@ def create_music_video(audio_file: str, video_files: VideoList, beat_times: Beat
                       max_workers: int = None,
                       beat_info: dict = None,
                       lossless_mode: bool = False, use_gpu: bool = False, 
-                      gpu_encoder: str = 'h264_nvenc', fps: float = None) -> str:
+                      gpu_encoder: str = 'h264_nvenc', fps: float = None,
+                      enable_subtitles: bool = False,
+                      lyrics_text: str = None,
+                      lyrics_mode: str = "auto_whisper",
+                      lyrics_file: str = None,
+                      lyrics_style: str = "tiktok_bounce",
+                      lyrics_palette: str = "tiktok_yellow",
+                      lyrics_position: str = "bottom",
+                      progress_callback: Callable[[str], None] = None) -> str:
+
     """
     Creates a music video with video clips cut to detected beats.
     
@@ -704,8 +714,91 @@ def create_music_video(audio_file: str, video_files: VideoList, beat_times: Beat
         assembly_seconds = time.perf_counter() - assembly_started
         render_info["final_assembly_seconds"] = float(assembly_seconds)
         print(f"   ⏱ Final assembly total: {_fmt_seconds(assembly_seconds)}")
+
+        # Karaoke / Synchronized Lyrics Subtitles Processing
+        if enable_subtitles and os.path.exists(output_file):
+            print(f"\n{'='*60}")
+            print(f"🎤 SUBTITLES / KARAOKE: Generating & burning animated captions")
+            print(f"{'='*60}\n")
+            if progress_callback:
+                progress_callback("Generazione sottotitoli karaoke e trascrizione vocale...")
+
+            try:
+                from lyrics_karaoke import (
+                    transcribe_audio_whisper,
+                    align_user_lyrics_with_audio,
+                    parse_lrc_or_srt,
+                    group_words_into_phrases,
+                    generate_karaoke_ass,
+                    export_subtitles_bundle,
+                    burn_karaoke_to_video,
+                )
+                from paths import get_subtitles_output_dir
+
+                phrases = []
+                # Case 1: Pre-timed file provided
+                if lyrics_file and os.path.exists(lyrics_file):
+                    phrases = parse_lrc_or_srt(lyrics_file)
+
+                # Case 2: Whisper or User Text
+                if not phrases:
+                    whisper_words = []
+                    if lyrics_mode in ("auto_whisper", "user_lyrics"):
+                        whisper_words = transcribe_audio_whisper(
+                            audio_path=audio_file,
+                            model_size="base",
+                            progress_callback=progress_callback
+                        )
+
+                    if lyrics_text and lyrics_text.strip():
+                        final_words = align_user_lyrics_with_audio(
+                            provided_lyrics_text=lyrics_text,
+                            audio_words=whisper_words,
+                            audio_duration=audio_duration,
+                            beat_times=selected_beats,
+                        )
+                    else:
+                        final_words = whisper_words
+
+                    phrases = group_words_into_phrases(final_words, max_words_per_line=4)
+
+                if phrases:
+                    w_out, h_out = get_video_resolution(output_file)
+                    base_name = os.path.splitext(os.path.basename(output_file))[0]
+                    ass_path = os.path.join(session_temp_dir, f"{base_name}_karaoke.ass")
+                    generate_karaoke_ass(
+                        phrases=phrases,
+                        output_ass_path=ass_path,
+                        video_width=w_out,
+                        video_height=h_out,
+                        animation_style=lyrics_style,
+                        palette_key=lyrics_palette,
+                        position_mode=lyrics_position,
+                        uppercase=True,
+                    )
+
+                    # Export subtitle bundle (.ass, .srt, .lrc)
+                    export_subtitles_bundle(phrases, base_name, get_subtitles_output_dir(), uppercase=False)
+
+                    subbed_temp_output = os.path.join(session_temp_dir, f"subbed_{os.path.basename(output_file)}")
+                    sub_success, sub_err = burn_karaoke_to_video(
+                        input_video=output_file,
+                        ass_path=ass_path,
+                        output_video=subbed_temp_output,
+                        use_nvenc=use_nvenc,
+                        gpu_encoder=gpu_encoder,
+                        custom_fps=fps,
+                    )
+                    if sub_success and os.path.exists(subbed_temp_output) and os.path.getsize(subbed_temp_output) > 0:
+                        shutil.move(subbed_temp_output, output_file)
+                        print(f"✓ Successfully burned animated karaoke subtitles into {output_file}")
+                    else:
+                        print(f"⚠️  Warning: Failed to burn subtitles: {sub_err}")
+            except Exception as e:
+                print(f"⚠️  Warning in subtitle pipeline: {e}")
  
         print(f"\n🧹 Cleaning up resources...")
+
         
         # Cleanup clip files
         for clip_file in clip_files:

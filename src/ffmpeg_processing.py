@@ -19,7 +19,8 @@ import random
 import shutil
 import uuid
 import re
-from typing import Tuple, List
+from typing import Tuple, List, Optional, Dict, Any
+
 
 
 from logger import (
@@ -860,6 +861,7 @@ def extract_vertical_clip_9_16(
     use_nvenc: bool = False,
     gpu_encoder: str = "h264_nvenc",
     audio_fade: bool = True,
+    ass_subtitle_file: Optional[str] = None,
 ) -> Tuple[bool, str]:
     """
     Extract a high-quality vertical 9:16 clip optimized for TikTok/Reels/Shorts.
@@ -868,12 +870,19 @@ def extract_vertical_clip_9_16(
     - 'smart_crop' / 'center_crop': 1080x1920 center-crop filling the vertical frame.
     - 'blur_pad' / 'blurred_background': 16:9 centered foreground + blurred & zoomed 9:16 background.
     - 'fit_letterbox': 16:9 centered with black padding to 1080x1920.
+    Optional ass_subtitle_file burns synchronized karaoke subtitles directly.
     """
     try:
         w = max(2, int(target_width) // 2 * 2)
         h = max(2, int(target_height) // 2 * 2)
         exact_duration = max(0.5, float(duration))
         frame_count = max(1, seconds_to_frame_count(exact_duration, fps))
+
+        # Subtitle filter fragment if ASS subtitle file provided
+        ass_sub_filter = ""
+        if ass_subtitle_file and os.path.exists(ass_subtitle_file):
+            escaped_ass = ass_subtitle_file.replace("\\", "/").replace(":", "\\:")
+            ass_sub_filter = f",ass='{escaped_ass}'"
 
         # Build video filter graph according to framing mode
         is_complex = False
@@ -885,21 +894,22 @@ def extract_vertical_clip_9_16(
                 f"[bg]scale={w}:{h}:force_original_aspect_ratio=increase,"
                 f"crop={w}:{h}:(in_w-{w})/2:(in_h-{h})/2,boxblur=20:2[bg_blur];"
                 f"[fg]scale={w}:{h}:force_original_aspect_ratio=decrease[fg_fit];"
-                f"[bg_blur][fg_fit]overlay=(W-w)/2:(H-h)/2,setsar=1[vout]"
+                f"[bg_blur][fg_fit]overlay=(W-w)/2:(H-h)/2{ass_sub_filter},setsar=1[vout]"
             )
         elif framing_mode == "fit_letterbox":
             vf_simple = (
                 f"setpts=PTS-STARTPTS,fps={fps},"
                 f"scale={w}:{h}:force_original_aspect_ratio=decrease,"
-                f"pad={w}:{h}:({w}-iw)/2:({h}-ih)/2:black,setsar=1"
+                f"pad={w}:{h}:({w}-iw)/2:({h}-ih)/2:black{ass_sub_filter},setsar=1"
             )
         else:
             # Default 'smart_crop' / center crop
             vf_simple = (
                 f"setpts=PTS-STARTPTS,fps={fps},"
                 f"scale={w}:{h}:force_original_aspect_ratio=increase,"
-                f"crop={w}:{h}:(in_w-{w})/2:(in_h-{h})/2,setsar=1"
+                f"crop={w}:{h}:(in_w-{w})/2:(in_h-{h})/2{ass_sub_filter},setsar=1"
             )
+
 
         # Build audio filter graph
         audio_available = has_audio_stream(video_file)

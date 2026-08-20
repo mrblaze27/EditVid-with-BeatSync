@@ -578,9 +578,17 @@ def generate_social_clips(
     use_gpu: bool = True,
     gpu_encoder: str = "h264_nvenc",
     custom_fps: float = None,
+    enable_subtitles: bool = False,
+    lyrics_text: str = None,
+    lyrics_mode: str = "auto_whisper",
+    lyrics_file: str = None,
+    lyrics_style: str = "tiktok_bounce",
+    lyrics_palette: str = "tiktok_yellow",
+    lyrics_position: str = "bottom",
     progress_callback: Callable[[str], None] = None,
     console_callback: Callable[[int, str], None] = None,
 ) -> Dict[str, Any]:
+
     """
     Main function to analyze a full video and export optimal vertical 9:16 clips for TikTok/Shorts.
 
@@ -694,6 +702,43 @@ def generate_social_clips(
         effective_use_nvenc = use_gpu and NVENC_AVAILABLE and gpu_encoder != "cpu" and gpu_encoder != "none"
         actual_encoder = gpu_encoder if effective_use_nvenc else "libx264"
 
+        # Prepare karaoke subtitle words if enabled
+        full_timed_words = []
+        if enable_subtitles and has_audio and extracted_audio and os.path.exists(extracted_audio):
+            _notify(6, "Elaborazione sottotitoli karaoke e trascrizione vocale...")
+            try:
+                from lyrics_karaoke import (
+                    transcribe_audio_whisper,
+                    align_user_lyrics_with_audio,
+                    parse_lrc_or_srt,
+                    TimedWord,
+                )
+
+                if lyrics_file and os.path.exists(lyrics_file):
+                    parsed_phrases = parse_lrc_or_srt(lyrics_file)
+                    for p in parsed_phrases:
+                        full_timed_words.extend(p.words)
+                else:
+                    whisper_words = []
+                    if lyrics_mode in ("auto_whisper", "user_lyrics"):
+                        whisper_words = transcribe_audio_whisper(
+                            audio_path=extracted_audio,
+                            model_size="base",
+                            progress_callback=progress_callback,
+                        )
+
+                    if lyrics_text and lyrics_text.strip():
+                        full_timed_words = align_user_lyrics_with_audio(
+                            provided_lyrics_text=lyrics_text,
+                            audio_words=whisper_words,
+                            audio_duration=duration,
+                            beat_times=beat_times,
+                        )
+                    else:
+                        full_timed_words = whisper_words
+            except Exception as e:
+                print(f"   ⚠️  Warning preparing subtitles for shorts: {e}")
+
         base_name = os.path.splitext(os.path.basename(video_path))[0]
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -709,6 +754,40 @@ def generate_social_clips(
             clip_filename = f"{base_name}_short_{idx+1}_{_fmt_time_badge(start_s).replace(':','m')}s_{timestamp}_9x16.mp4"
             clip_output_path = os.path.join(output_dir, clip_filename)
 
+            # Generate clip-specific ASS subtitle file if enabled
+            clip_ass_file = None
+            if enable_subtitles and full_timed_words:
+                try:
+                    from lyrics_karaoke import TimedWord, group_words_into_phrases, generate_karaoke_ass
+                    clip_words = []
+                    for tw in full_timed_words:
+                        if tw.end > start_s and tw.start < end_s:
+                            shifted_start = max(0.0, tw.start - start_s)
+                            shifted_end = min(dur_s, tw.end - start_s)
+                            if shifted_end > shifted_start:
+                                clip_words.append(TimedWord(
+                                    word=tw.word,
+                                    start=shifted_start,
+                                    end=shifted_end,
+                                    confidence=tw.confidence,
+                                ))
+                    if clip_words:
+                        clip_phrases = group_words_into_phrases(clip_words, max_words_per_line=3)
+                        if clip_phrases:
+                            clip_ass_file = os.path.join(temp_proc_dir, f"clip_{idx+1}_karaoke.ass")
+                            generate_karaoke_ass(
+                                phrases=clip_phrases,
+                                output_ass_path=clip_ass_file,
+                                video_width=DEFAULT_TARGET_WIDTH,
+                                video_height=DEFAULT_TARGET_HEIGHT,
+                                animation_style=lyrics_style,
+                                palette_key=lyrics_palette,
+                                position_mode=lyrics_position,
+                                uppercase=True,
+                            )
+                except Exception as sub_e:
+                    print(f"   ⚠️  Warning generating clip subtitle: {sub_e}")
+
             _notify(6, f"Extracting Clip {idx+1}/{len(intervals)}: {start_s:.2f}s - {end_s:.2f}s ({dur_s:.1f}s) -> 1080x1920...")
 
             success, err_msg = extract_vertical_clip_9_16(
@@ -723,7 +802,9 @@ def generate_social_clips(
                 use_nvenc=effective_use_nvenc,
                 gpu_encoder=gpu_encoder if effective_use_nvenc else "h264_nvenc",
                 audio_fade=True,
+                ass_subtitle_file=clip_ass_file,
             )
+
 
             if not success or not os.path.exists(clip_output_path) or os.path.getsize(clip_output_path) == 0:
                 print(f"   ⚠️  Warning: Failed to render clip {idx+1}: {err_msg}")
