@@ -721,7 +721,7 @@ def create_music_video(audio_file: str, video_files: VideoList, beat_times: Beat
             print(f"🎤 SUBTITLES / KARAOKE: Generating & burning animated captions")
             print(f"{'='*60}\n")
             if progress_callback:
-                progress_callback("Generazione sottotitoli karaoke e trascrizione vocale...")
+                progress_callback("Generating animated karaoke subtitles & speech transcription...")
 
             try:
                 from lyrics_karaoke import (

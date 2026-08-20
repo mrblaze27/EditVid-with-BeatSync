@@ -707,7 +707,7 @@ def generate_social_clips(
         # Prepare full-song lyrics timestamps ONCE across the entire video
         full_timed_words: List[TimedWord] = []
         if enable_subtitles and has_audio and extracted_audio and os.path.exists(extracted_audio):
-            _notify(6, "Trascrizione vocale AI e sincronizzazione testi canzone...")
+            _notify(6, "AI speech recognition & lyrics audio synchronization...")
             try:
                 from lyrics_karaoke import (
                     transcribe_audio_whisper,
@@ -738,7 +738,7 @@ def generate_social_clips(
                     else:
                         full_timed_words = whisper_words
 
-                _notify(6, f"Rilevate {len(full_timed_words)} parole sincronizzate nella traccia audio.")
+                _notify(6, f"Detected {len(full_timed_words)} synchronized words in audio track.")
             except Exception as e:
                 print(f"   ⚠️  Warning preparing subtitles for shorts: {e}")
 
@@ -805,9 +805,10 @@ def generate_social_clips(
                                 position_mode=lyrics_position,
                                 uppercase=True,
                             )
-                            _notify(6, f"Clip #{idx+1}: Creati sottotitoli animati ({len(clip_words)} parole)")
+                            _notify(6, f"Clip #{idx+1}: Created animated subtitles ({len(clip_words)} words)")
                 except Exception as sub_e:
                     print(f"   ⚠️  Warning generating clip subtitle: {sub_e}")
+
 
             _notify(6, f"Extracting Clip {idx+1}/{len(intervals)}: {start_s:.2f}s - {end_s:.2f}s ({dur_s:.1f}s) -> 1080x1920...")
 

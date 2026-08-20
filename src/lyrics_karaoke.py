@@ -210,7 +210,7 @@ def transcribe_audio_whisper(
     temp_vocal_wav = None
     try:
         if progress_callback:
-            progress_callback(f"Caricamento modello Whisper AI ({model_size})...")
+            progress_callback(f"Loading Whisper AI model ({model_size})...")
 
         model = get_cached_whisper_model(model_size)
 
@@ -222,7 +222,7 @@ def transcribe_audio_whisper(
             target_audio = audio_path
 
         if progress_callback:
-            progress_callback("Trascrizione vocale AI e rilevamento parole...")
+            progress_callback("AI speech recognition & vocal word detection...")
 
         prompt_str = initial_prompt[:400] if initial_prompt else None
 
@@ -242,7 +242,7 @@ def transcribe_audio_whisper(
 
         for segment in segments:
             if progress_callback and total_dur > 0:
-                progress_callback(f"Trascrizione Whisper: {int(segment.start)}s / {int(total_dur)}s ({len(timed_words)} parole)...")
+                progress_callback(f"Whisper Transcription: {int(segment.start)}s / {int(total_dur)}s ({len(timed_words)} words)...")
 
             if hasattr(segment, "words") and segment.words:
                 for w in segment.words:
@@ -256,9 +256,10 @@ def transcribe_audio_whisper(
                         ))
 
         if progress_callback:
-            progress_callback(f"Trascrizione completata: {len(timed_words)} parole rilevate.")
+            progress_callback(f"Transcription complete: {len(timed_words)} words synchronized.")
 
         return timed_words
+
     except Exception as e:
         print(f"   ⚠️  Whisper transcription error: {e}")
         return []

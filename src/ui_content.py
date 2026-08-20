@@ -373,87 +373,88 @@ TAB_FULL_VIDEO = "🎬 Full Music Video Generator"
 TAB_TIKTOK_SHORTS = "📱 TikTok & Shorts Auto-Clipper (9:16)"
 
 TIKTOK_SECTION_TITLE = "📱 TikTok & Shorts 9:16 AI Highlights Generator"
-TIKTOK_SECTION_DESC = """Estrai automaticamente le migliori clip verticali in **formato 9:16 (1080x1920)** per TikTok, Instagram Reels e YouTube Shorts.
-Il sistema analizza l'audio (beat, drop, energia) e il video tramite **Visione AI (Qwen3-VL)** e motion tracking per trovare i momenti più coinvolgenti."""
+TIKTOK_SECTION_DESC = """Automatically extract top vertical clips in **9:16 format (1080x1920)** for TikTok, Instagram Reels, and YouTube Shorts.
+The engine analyzes audio (beats, drops, energy) and video with **AI Vision (Qwen3-VL)** & motion dynamics to find the most engaging viral moments."""
 
-LABEL_SHORTS_INPUT_VIDEO = "🎬 Video Sorgente di Input (.mp4 / .mkv / .mov)"
-LABEL_CLIP_COUNT = "🔢 Numero di Clip da Generare"
-INFO_CLIP_COUNT = "Numero di brevi video verticali 9:16 da estrarre (da 1 a 5)."
+LABEL_SHORTS_INPUT_VIDEO = "🎬 Input Video File (.mp4 / .mkv / .mov)"
+LABEL_CLIP_COUNT = "🔢 Number of Clips to Generate"
+INFO_CLIP_COUNT = "Number of short 9:16 vertical highlight clips to extract (1 to 5)."
 
-LABEL_DURATION_MODE = "⏱️ Durata Target delle Clip"
+LABEL_DURATION_MODE = "⏱️ Target Clip Duration"
 CHOICES_DURATION_MODE = [
-    ("⚡ Auto (15-30s) - Dinamica su Beat/Drop", "auto_15_30"),
-    ("🔥 15 Secondi - Hook Rapido TikTok/Reels", "15s"),
-    ("🎵 30 Secondi - Social Standard (Drop/Ritornello)", "30s"),
-    ("🎬 60 Secondi - Story/Highlight Esteso", "60s"),
+    ("⚡ Auto (15-30s) - Dynamic Beat & Drop Snapping", "auto_15_30"),
+    ("🔥 15 Seconds - Fast Hook (TikTok / Reels)", "15s"),
+    ("🎵 30 Seconds - Social Standard (Drop / Chorus)", "30s"),
+    ("🎬 60 Seconds - Story / Extended Highlight", "60s"),
 ]
 
-LABEL_FRAMING_MODE = "📐 Inquadratura Verticale 9:16 (1080x1920)"
+LABEL_FRAMING_MODE = "📐 9:16 Vertical Framing (1080x1920)"
 CHOICES_FRAMING_MODE = [
-    ("🎯 Smart Center Crop (9:16) - Focus Centro/Azione", "smart_crop"),
-    ("✨ Sfondo Sfocato (Blurred Fill 9:16) - Stile TikTok", "blur_pad"),
-    ("⬛ Fit con Barre Nere (Letterbox 9:16)", "fit_letterbox"),
+    ("🎯 Smart Center Crop (9:16) - Action Focus", "smart_crop"),
+    ("✨ Blurred Background Fill (9:16) - Viral Aesthetic", "blur_pad"),
+    ("⬛ Fit Letterbox (9:16) - Black Bars Padding", "fit_letterbox"),
 ]
 
-LABEL_AI_STRATEGY = "🧠 Strategia di Selezione AI & Scoring"
+LABEL_AI_STRATEGY = "🧠 AI Strategy & Viral Scoring"
 CHOICES_AI_STRATEGY = [
-    ("🚀 Smart Viral (Bilanciato AI + Drop + Movimento)", "smart_viral"),
-    ("💥 Picco Energia & Beat Drop", "peak_energy_drop"),
-    ("⚔️ Azione, Combattimento & Movimento", "visual_action"),
-    ("🎨 Cinematic & Estetica Visiva", "cinematic_beauty"),
+    ("🚀 Smart Viral (Balanced AI + Drop + Motion)", "smart_viral"),
+    ("💥 Peak Energy & Beat Drop", "peak_energy_drop"),
+    ("⚔️ Action, Combat & Motion Dynamics", "visual_action"),
+    ("🎨 Cinematic & Visual Aesthetics", "cinematic_beauty"),
 ]
 
-LABEL_ENABLE_QWEN = "🧠 Attiva Visione AI Qwen3-VL"
-INFO_ENABLE_QWEN = "Usa il modello locale Qwen3-VL per identificare hype, action, combat ed emozioni."
+LABEL_ENABLE_QWEN = "🧠 Enable Qwen3-VL AI Vision"
+INFO_ENABLE_QWEN = "Use local Qwen3-VL model to tag hype, action, combat, and emotional moments."
 
-BTN_GENERATE_SHORTS = "🚀 Genera Clip 9:16 per TikTok / Shorts"
-BTN_GENERATE_FROM_GENERATED = "📱 Genera Clip TikTok / Shorts (9:16) da questo Video"
+BTN_GENERATE_SHORTS = "🚀 Generate 9:16 Clips for TikTok / Shorts"
+BTN_GENERATE_FROM_GENERATED = "📱 Generate TikTok / Shorts Clips (9:16) from this Video"
 
-LABEL_SHORTS_OUTPUT_STATUS = "📊 Avanzamento & Statistiche"
-LABEL_SHORTS_GALLERY = "📱 Clip Verticali 9:16 Generate"
+LABEL_SHORTS_OUTPUT_STATUS = "📊 Progress & Statistics"
+LABEL_SHORTS_GALLERY = "📱 Generated 9:16 Vertical Clips"
 
 # ============================================================================
 # KARAOKE & SYNCHRONIZED LYRICS LABELS
 # ============================================================================
 
-GROUP_KARAOKE_TITLE = "🎤 Testo Canzone & Karaoke Sincronizzato (Stile TikTok)"
-LABEL_ENABLE_KARAOKE = "🎤 Inserisci Testo Canzone a Schermo (Stile Karaoke / TikTok)"
-INFO_ENABLE_KARAOKE = "Aggiunge i sottotitoli animati della canzone sincronizzati a tempo di musica e voce."
+GROUP_KARAOKE_TITLE = "🎤 Synchronized Lyrics & Karaoke (TikTok Style)"
+LABEL_ENABLE_KARAOKE = "🎤 Add On-Screen Song Lyrics (Karaoke / TikTok Style)"
+INFO_ENABLE_KARAOKE = "Burns animated lyrics synchronized to vocals and song rhythm."
 
-LABEL_LYRICS_MODE = "🛠️ Modalità Testo & Trascrizione"
+LABEL_LYRICS_MODE = "🛠️ Lyrics & Transcription Mode"
 CHOICES_LYRICS_MODE = [
-    ("🤖 Trascrizione Automatica AI (Whisper Vocals)", "auto_whisper"),
-    ("✍️ Testo Manuale Fornito (Allineamento AI a Tempo)", "user_lyrics"),
-    ("📁 Carica File Sottotitoli (.LRC / .SRT / .ASS)", "file"),
+    ("🤖 Automatic AI Speech Recognition (Whisper Vocals)", "auto_whisper"),
+    ("✍️ Manual Lyrics Input (AI Beat & Vocal Alignment)", "user_lyrics"),
+    ("📁 Upload Subtitle File (.LRC / .SRT / .ASS)", "file"),
 ]
 
-LABEL_LYRICS_TEXT = "📝 Testo della Canzone (Incolla il testo completo per sincronizzarlo all'audio)"
-INFO_LYRICS_TEXT = "Puoi incollare tutto il testo della canzone: l'AI lo allineerà automaticamente ai beat e alla traccia vocale!"
+LABEL_LYRICS_TEXT = "📝 Song Lyrics (Paste full lyrics text to align with audio)"
+INFO_LYRICS_TEXT = "Paste the complete song lyrics: AI will synchronize spelling and words to the beat and vocal track!"
 
-LABEL_LYRICS_STYLE = "✨ Stile Animazione Testo"
+LABEL_LYRICS_STYLE = "✨ Animation Style"
 CHOICES_LYRICS_STYLE = [
-    ("🔥 TikTok Word-Bounce (Parola per parola illuminata & ingrandita)", "tiktok_bounce"),
-    ("🎤 Classic Karaoke Sweep (Riempimento progressivo stile Karaoke)", "karaoke_sweep"),
-    ("⚡ Clean Pop-In (Frasi pulite a ritmo di musica)", "clean_pop"),
+    ("🔥 TikTok Word-Bounce (Active word highlighted & popped)", "tiktok_bounce"),
+    ("🎤 Classic Karaoke Sweep (Progressive color fill)", "karaoke_sweep"),
+    ("⚡ Clean Pop-In (Crisp phrase bursts to the rhythm)", "clean_pop"),
 ]
 
-LABEL_LYRICS_PALETTE = "🎨 Palette Colori Testo"
+LABEL_LYRICS_PALETTE = "🎨 Color Palette"
 CHOICES_LYRICS_PALETTE = [
-    ("🟡 TikTok Yellow (Bianco + Giallo Attivo)", "tiktok_yellow"),
-    ("🔵 Neon Cyan (Bianco + Azzurro Elettrico)", "neon_cyan"),
-    ("🌸 Hot Pink (Bianco + Fucsia / Magenta)", "hot_pink"),
-    ("🟢 Cyber Green (Bianco + Verde Lime)", "cyber_green"),
-    ("🔥 Flame Orange (Bianco + Arancione Fuoco)", "flame_orange"),
-    ("⚪ Pure White (Monocromatico Elegante)", "pure_white"),
+    ("🟡 TikTok Yellow (White base + Gold active)", "tiktok_yellow"),
+    ("🔵 Neon Cyan (White base + Electric Blue active)", "neon_cyan"),
+    ("🌸 Hot Pink (White base + Magenta active)", "hot_pink"),
+    ("🟢 Cyber Green (White base + Lime active)", "cyber_green"),
+    ("🔥 Flame Orange (White base + Fire Orange active)", "flame_orange"),
+    ("⚪ Pure White (Minimal Monochrome)", "pure_white"),
 ]
 
-LABEL_LYRICS_POSITION = "📍 Posizione a Schermo"
+LABEL_LYRICS_POSITION = "📍 Screen Position"
 CHOICES_LYRICS_POSITION = [
-    ("⬇️ In Basso (Standard Social)", "bottom"),
-    ("⏹️ Al Centro (Focal Point)", "center"),
-    ("⬆️ In Alto", "top"),
+    ("⬇️ Bottom (Social Standard)", "bottom"),
+    ("⏹️ Center (Focal Point)", "center"),
+    ("⬆️ Top", "top"),
 ]
 
-LABEL_LYRICS_FILE = "📁 File Sottotitoli Sincronizzati (.lrc / .srt / .ass)"
+LABEL_LYRICS_FILE = "📁 Synchronized Subtitle File (.lrc / .srt / .ass)"
+
 
 

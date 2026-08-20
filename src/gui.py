@@ -657,11 +657,11 @@ def _process_social_clips_impl(
     console_logger: StageConsoleLogger | None = None,
 ) -> Tuple[str, List[str | None], str]:
     if not video_file:
-        return "❌ Errore: Nessun file video selezionato.", [None] * 5, ""
+        return "❌ Error: No video file selected.", [None] * 5, ""
 
     local_path = _as_existing_source_path(video_file)
     if not local_path or not os.path.exists(local_path):
-        return f"❌ Errore: File video non accessibile: {video_file}", [None] * 5, ""
+        return f"❌ Error: Video file not accessible: {video_file}", [None] * 5, ""
 
     use_gpu = GPU_AVAILABLE
     set_gpu_mode(use_gpu)
@@ -669,7 +669,7 @@ def _process_social_clips_impl(
     gpu_encoder = processing_mode if use_nvenc else 'cpu'
 
     if progress_callback:
-        progress_callback("Inizio analisi audio-visiva & AI del video...")
+        progress_callback("Starting audio-visual & AI analysis of video...")
 
     res = generate_social_clips(
         video_path=local_path,
@@ -692,7 +692,7 @@ def _process_social_clips_impl(
     )
 
     if not res.get("success"):
-        return f"❌ Errore: {res.get('error', 'Generazione fallita')}", [None] * 5, ""
+        return f"❌ Error: {res.get('error', 'Generation failed')}", [None] * 5, ""
 
     clips = res.get("clips", [])
     clip_paths = [None] * 5
@@ -700,7 +700,7 @@ def _process_social_clips_impl(
         clip_paths[idx] = c.file_path
 
     summary_md = _format_shorts_summary_markdown(res)
-    status_text = f"✅ Completato! {len(clips)} clip verticali 9:16 create in {res.get('total_processing_seconds', 0):.1f}s."
+    status_text = f"✅ Completed! {len(clips)} vertical 9:16 clips created in {res.get('total_processing_seconds', 0):.1f}s."
     return status_text, clip_paths, summary_md
 
 
@@ -754,7 +754,7 @@ def process_social_clips(
                 )
         except Exception as e:
             console_logger.line(f"Error: {e}")
-            res = f"❌ Errore: {e}", [None] * 5, ""
+            res = f"❌ Error: {e}", [None] * 5, ""
         finally:
             console_logger.finish()
         result_queue.put(res)
@@ -867,7 +867,7 @@ def create_ui() -> gr.Blocks:
                             with gr.Row():
                                 lyrics_mode = gr.Radio(choices=CHOICES_LYRICS_MODE, value="auto_whisper", label=LABEL_LYRICS_MODE)
                                 lyrics_file = gr.File(label=LABEL_LYRICS_FILE, file_types=['.lrc', '.srt', '.ass', '.txt'], type='filepath')
-                            lyrics_text = gr.Textbox(label=LABEL_LYRICS_TEXT, placeholder="Incolla qui il testo completo della canzone per allinearlo ai beat e alla voce...", lines=3, info=INFO_LYRICS_TEXT)
+                            lyrics_text = gr.Textbox(label=LABEL_LYRICS_TEXT, placeholder="Paste full song lyrics here to synchronize with beats and vocals...", lines=3, info=INFO_LYRICS_TEXT)
                             with gr.Row():
                                 lyrics_style = gr.Dropdown(choices=CHOICES_LYRICS_STYLE, value="tiktok_bounce", label=LABEL_LYRICS_STYLE)
                                 lyrics_palette = gr.Dropdown(choices=CHOICES_LYRICS_PALETTE, value="tiktok_yellow", label=LABEL_LYRICS_PALETTE)
@@ -896,7 +896,7 @@ def create_ui() -> gr.Blocks:
                 
                 with gr.Row():
                     with gr.Column(scale=1):
-                        gr.Markdown('### 📁 Video Sorgente di Input')
+                        gr.Markdown('### 📁 Input Video File')
                         shorts_video_input = gr.File(
                             label=LABEL_SHORTS_INPUT_VIDEO,
                             file_types=['.mp4', '.mkv', '.mov'],
@@ -905,7 +905,7 @@ def create_ui() -> gr.Blocks:
                         )
 
                         with gr.Group():
-                            gr.Markdown('### ⚙️ Configurazione Clip & Durata')
+                            gr.Markdown('### ⚙️ Clip Configuration & Duration')
                             shorts_clip_count = gr.Slider(
                                 minimum=1, maximum=5, value=3, step=1,
                                 label=LABEL_CLIP_COUNT, info=INFO_CLIP_COUNT
@@ -917,7 +917,7 @@ def create_ui() -> gr.Blocks:
                             )
 
                         with gr.Group():
-                            gr.Markdown('### 📐 Inquadratura 9:16 & Strategia AI')
+                            gr.Markdown('### 📐 9:16 Framing & AI Strategy')
                             shorts_framing_mode = gr.Radio(
                                 choices=CHOICES_FRAMING_MODE,
                                 value="smart_crop",
@@ -939,14 +939,14 @@ def create_ui() -> gr.Blocks:
                             with gr.Row():
                                 shorts_lyrics_mode = gr.Radio(choices=CHOICES_LYRICS_MODE, value="auto_whisper", label=LABEL_LYRICS_MODE)
                                 shorts_lyrics_file = gr.File(label=LABEL_LYRICS_FILE, file_types=['.lrc', '.srt', '.ass', '.txt'], type='filepath')
-                            shorts_lyrics_text = gr.Textbox(label=LABEL_LYRICS_TEXT, placeholder="Incolla qui il testo completo della canzone...", lines=3, info=INFO_LYRICS_TEXT)
+                            shorts_lyrics_text = gr.Textbox(label=LABEL_LYRICS_TEXT, placeholder="Paste full song lyrics here...", lines=3, info=INFO_LYRICS_TEXT)
                             with gr.Row():
                                 shorts_lyrics_style = gr.Dropdown(choices=CHOICES_LYRICS_STYLE, value="tiktok_bounce", label=LABEL_LYRICS_STYLE)
                                 shorts_lyrics_palette = gr.Dropdown(choices=CHOICES_LYRICS_PALETTE, value="tiktok_yellow", label=LABEL_LYRICS_PALETTE)
                                 shorts_lyrics_position = gr.Dropdown(choices=CHOICES_LYRICS_POSITION, value="bottom", label=LABEL_LYRICS_POSITION)
 
                         with gr.Group():
-                            gr.Markdown('### 🎬 Modalità di Rendering')
+                            gr.Markdown('### 🎬 Rendering Mode')
                             if NVENC_AVAILABLE:
                                 shorts_proc_mode = gr.Radio(
                                     choices=[('NVIDIA NVENC H.264', 'h264_nvenc'), ('NVIDIA NVENC HEVC', 'hevc_nvenc'), ('CPU (H.264)', 'cpu')],
@@ -963,11 +963,11 @@ def create_ui() -> gr.Blocks:
                         shorts_process_btn = gr.Button(BTN_GENERATE_SHORTS, variant='primary', size='lg')
 
                     with gr.Column(scale=1):
-                        gr.Markdown('### 📺 Risultati & Clip Verticali 9:16')
+                        gr.Markdown('### 📺 Results & 9:16 Vertical Clips')
                         shorts_status_output = gr.Textbox(
                             label=LABEL_SHORTS_OUTPUT_STATUS,
                             interactive=False,
-                            value="Pronto. Carica un video o usa il pulsante dal generatore principale e premi 'Genera Clip 9:16'.",
+                            value="Ready. Load a video or use the button from the main generator and click 'Generate 9:16 Clips'.",
                             lines=3,
                             max_lines=3,
                             elem_id='shorts-status-box'
