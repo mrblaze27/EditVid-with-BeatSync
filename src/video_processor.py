@@ -667,6 +667,9 @@ def create_music_video(audio_file: str, video_files: VideoList, beat_times: Beat
                         clip_files[idx] = clip_path
                         
                         completed += 1
+                        if progress_callback and (completed % 5 == 0 or completed == len(clip_args)):
+                            pct = int(round(completed / max(1, len(clip_args)) * 100))
+                            progress_callback(f"Stage 6: Rendering {completed}/{len(clip_args)} cuts ({pct}%)...")
                         if completed % 10 == 0 or completed == len(clip_args):
                             progress = (completed / len(clip_args)) * 100
                             elapsed = time.perf_counter() - clip_stage_started

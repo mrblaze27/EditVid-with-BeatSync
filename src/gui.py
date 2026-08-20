@@ -145,8 +145,49 @@ STATUS_BOX_CSS = """
 """
 
 
+STAGE_PROGRESS_MAP = {
+    1: (0.00, 0.05, "Probing input properties"),
+    2: (0.05, 0.15, "Audio rhythm & beat grid"),
+    3: (0.15, 0.40, "Visual dynamics & scene cuts"),
+    4: (0.40, 0.70, "AI Vision tagging & semantic analysis"),
+    5: (0.70, 0.75, "Viral scoring & cut planning"),
+    6: (0.75, 1.00, "Rendering video & subtitles"),
+}
+
+
+def parse_progress_info(msg: str, current_stage: int = 1) -> Tuple[float, int, str, str]:
+    stage_num = current_stage
+    match = re.search(r'Stage\s*(\d+)', msg, re.IGNORECASE)
+    if match:
+        stage_num = int(match.group(1))
+    
+    stage_info = STAGE_PROGRESS_MAP.get(stage_num, (0.0, 1.0, "Processing"))
+    start_pct, end_pct, stage_name = stage_info
+    stage_span = end_pct - start_pct
+    
+    sub_pct = 0.25
+    pct_match = re.search(r'(\d+(?:\.\d+)?)\s*%', msg)
+    clip_match = re.search(r'(?:Clip|cuts?|segments?)\s*#?(\d+)[ /]+(\d+)', msg, re.IGNORECASE)
+    
+    if pct_match and 'stage' not in msg.lower():
+        sub_pct = min(1.0, max(0.0, float(pct_match.group(1)) / 100.0))
+    elif clip_match:
+        c_idx, c_total = int(clip_match.group(1)), max(1, int(clip_match.group(2)))
+        sub_pct = min(1.0, max(0.0, c_idx / c_total))
+        
+    fraction = start_pct + stage_span * sub_pct
+    total_pct = int(round(fraction * 100))
+    
+    clean_msg = re.sub(r'^Stage\s*\d+:\s*', '', msg).strip()
+    desc = f"[Stage {stage_num}/6 - {total_pct}%] {stage_name}"
+    box_text = f"⏳ [Stage {stage_num}/6 • {total_pct}% Complete]\n{clean_msg}"
+    return fraction, stage_num, desc, box_text
+
+
 def _stage_status(stage_number: int) -> str:
-    return f"Stage {stage_number} is processing. Please wait."
+    _, _, desc, box_text = parse_progress_info(f"Stage {stage_number}: Initializing stage...", stage_number)
+    return box_text
+
 
 
 
@@ -568,7 +609,8 @@ def process_video(
     lyrics_style: str,
     lyrics_palette: str,
     lyrics_position: str,
-    session_state: dict
+    session_state: dict,
+    progress=gr.Progress(track_tqdm=True)
 ) -> Iterator[StatusResult]:
     status_queue: queue.Queue[str | None] = queue.Queue()
     result_queue: queue.Queue[StatusResult] = queue.Queue(maxsize=1)
@@ -614,19 +656,31 @@ def process_video(
     console_logger.start_stage(1)
     thread.start()
 
+    current_stage = 1
     last_status = _stage_status(1)
+    progress(0.01, desc="[Stage 1/6 - 1%] Starting BeatSync...")
     yield None, last_status, session_state
 
     while True:
         message = status_queue.get()
         if message is None:
             break
-        if message != last_status:
-            last_status = message
-            yield None, message, session_state
+        fraction, current_stage, desc, box_text = parse_progress_info(message, current_stage)
+        try:
+            progress(fraction, desc=desc)
+        except Exception:
+            pass
+        if box_text != last_status:
+            last_status = box_text
+            yield None, box_text, session_state
 
     thread.join()
+    try:
+        progress(1.0, desc="✅ Complete! (100%)")
+    except Exception:
+        pass
     yield result_queue.get()
+
 
 
 # ============================================================================
@@ -746,6 +800,7 @@ def process_social_clips(
     lyrics_style: str,
     lyrics_palette: str,
     lyrics_position: str,
+    progress=gr.Progress(track_tqdm=True)
 ) -> Iterator[Tuple[str, str | None, str | None, str | None, str | None, str | None, str]]:
     status_queue: queue.Queue[str | None] = queue.Queue()
     result_queue: queue.Queue[Tuple[str, List[str | None], str]] = queue.Queue(maxsize=1)
@@ -792,20 +847,32 @@ def process_social_clips(
     console_logger.start_stage(1)
     thread.start()
 
-    last_status = "Inizializzazione estrazione clip 9:16..."
+    current_stage = 1
+    last_status = "⏳ [Stage 1/6 • 1% Complete]\nInitializing 9:16 vertical clipper..."
+    progress(0.01, desc="[Stage 1/6 - 1%] Starting Clipper...")
     yield last_status, None, None, None, None, None, ""
 
     while True:
         msg = status_queue.get()
         if msg is None:
             break
-        if msg != last_status:
-            last_status = msg
-            yield msg, None, None, None, None, None, ""
+        fraction, current_stage, desc, box_text = parse_progress_info(msg, current_stage)
+        try:
+            progress(fraction, desc=desc)
+        except Exception:
+            pass
+        if box_text != last_status:
+            last_status = box_text
+            yield box_text, None, None, None, None, None, ""
 
     thread.join()
+    try:
+        progress(1.0, desc="✅ Complete! (100%)")
+    except Exception:
+        pass
     final_status, clip_paths, summary_md = result_queue.get()
     yield final_status, clip_paths[0], clip_paths[1], clip_paths[2], clip_paths[3], clip_paths[4], summary_md
+
 
 
 def cleanup_on_startup():
@@ -1044,7 +1111,7 @@ def create_ui() -> gr.Blocks:
                 session_state
             ],
             outputs=[video_output, status_output, session_state],
-            show_progress='hidden'
+            show_progress='full'
         )
 
         create_shorts_from_mv_btn.click(
@@ -1077,8 +1144,9 @@ def create_ui() -> gr.Blocks:
                 clip_v1, clip_v2, clip_v3, clip_v4, clip_v5,
                 shorts_summary_md,
             ],
-            show_progress='hidden'
+            show_progress='full'
         )
+
 
 
     return app
